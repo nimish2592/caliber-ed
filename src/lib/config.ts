@@ -47,12 +47,19 @@ export const appConfig = {
   assessmentEngine: (process.env.ASSESSMENT_ENGINE ?? "heuristic") as "heuristic" | "openai",
   openaiKey: process.env.OPENAI_API_KEY?.trim() || "",
   openaiModel: process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini",
+  openaiInputUsdPerMillion: Number(process.env.OPENAI_INPUT_USD_PER_MILLION ?? 0.15) || 0.15,
+  openaiOutputUsdPerMillion: Number(process.env.OPENAI_OUTPUT_USD_PER_MILLION ?? 0.6) || 0.6,
   caliberCvApiUrl: process.env.CALIBER_CV_API_URL?.replace(/\/$/, "") || "",
   caliberCvApiKey: process.env.CALIBER_CV_API_KEY?.trim() || "",
   demoAdminEmail: (process.env.DEMO_ADMIN_EMAIL ?? "campus@demo.edu").toLowerCase(),
   demoAdminPassword: process.env.DEMO_ADMIN_PASSWORD ?? "campus-demo",
-  platformAdminEmail: (process.env.PLATFORM_ADMIN_EMAIL ?? "platform@caliber.edu").toLowerCase(),
+  platformAdminEmail: (process.env.PLATFORM_ADMIN_EMAIL ?? "nimish.khandelwal25@gmail.com").toLowerCase(),
   platformAdminPassword: process.env.PLATFORM_ADMIN_PASSWORD ?? "platform-demo",
+  /** Extra platform admins (comma-separated). Always includes the two SaaS owner Gmails. */
+  platformAdminEmailsExtra: (process.env.PLATFORM_ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
   googleClientId: process.env.GOOGLE_CLIENT_ID?.trim() || "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET?.trim() || "",
 };
@@ -65,3 +72,11 @@ export const PLAN_LIMITS = {
 } as const;
 
 export type PlanId = keyof typeof PLAN_LIMITS;
+
+export function campusAssessmentDefaults() {
+  const engine = appConfig.assessmentEngine === "openai" ? "openai" : "heuristic";
+  return {
+    engine,
+    model: engine === "openai" ? appConfig.openaiModel : "",
+  };
+}

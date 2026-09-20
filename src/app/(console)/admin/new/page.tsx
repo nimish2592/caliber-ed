@@ -16,6 +16,9 @@ export default function NewClientPage() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [plan, setPlan] = useState<(typeof PLANS)[number]["id"]>("institution");
+  const [annualLimit, setAnnualLimit] = useState(String(PLANS[1].limit));
+  const [limitTouched, setLimitTouched] = useState(false);
   const [created, setCreated] = useState<{
     id: string;
     name: string;
@@ -35,6 +38,7 @@ export default function NewClientPage() {
       body: JSON.stringify({
         name: form.get("name"),
         plan: form.get("plan"),
+        annualLimit: Number(form.get("annualLimit")),
         user: {
           name: form.get("userName"),
           email: form.get("userEmail"),
@@ -133,15 +137,41 @@ export default function NewClientPage() {
                 Plan
                 <select
                   name="plan"
-                  defaultValue="institution"
+                  value={plan}
+                  onChange={(e) => {
+                    const next = e.target.value as (typeof PLANS)[number]["id"];
+                    setPlan(next);
+                    const match = PLANS.find((p) => p.id === next);
+                    if (match && !limitTouched) setAnnualLimit(String(match.limit));
+                  }}
                   className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {PLANS.map((plan) => (
-                    <option key={plan.id} value={plan.id}>
-                      {plan.id} · {plan.limit} assessments / year
+                  {PLANS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.id} · {p.limit.toLocaleString()} assessments / year
                     </option>
                   ))}
                 </select>
+              </label>
+
+              <label className="block text-sm font-medium text-slate-700">
+                Allocated CV analyses
+                <input
+                  name="annualLimit"
+                  type="number"
+                  min={1}
+                  max={1000000}
+                  required
+                  value={annualLimit}
+                  onChange={(e) => {
+                    setLimitTouched(true);
+                    setAnnualLimit(e.target.value);
+                  }}
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="mt-1 block text-xs text-slate-500">
+                  This campus can run this many analyses this year. You can change it later from the client page.
+                </span>
               </label>
 
               <div className="border-t border-slate-100 pt-4 space-y-4">

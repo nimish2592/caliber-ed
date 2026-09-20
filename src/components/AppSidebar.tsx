@@ -21,6 +21,14 @@ const CAMPUS_ITEMS: NavItem[] = [
   { key: "settings", href: "/settings", label: "Settings", icon: <Settings className="w-4 h-4" />, accent: "violet" },
 ];
 
+const ADMIN_ITEM: NavItem = {
+  key: "admin",
+  href: "/admin",
+  label: "Admin",
+  icon: <Shield className="w-4 h-4" />,
+  accent: "amber",
+};
+
 function activeClass(active: boolean, accent: string): string {
   if (!active) return "text-slate-600 hover:text-slate-900 hover:bg-slate-100";
   if (accent === "violet") return "bg-violet-50 text-violet-700 border-violet-200";
@@ -39,19 +47,18 @@ function activeTab(pathname: string): SidebarTab {
 export default function AppSidebar({
   userEmail,
   isPlatform = false,
+  isDemo = false,
+  canAccessAdmin = false,
 }: {
   userEmail: string;
   isPlatform?: boolean;
+  isDemo?: boolean;
+  canAccessAdmin?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const active = activeTab(pathname);
-  const items: NavItem[] = isPlatform
-    ? [
-        { key: "admin", href: "/admin", label: "Admin", icon: <Shield className="w-4 h-4" />, accent: "amber" },
-        ...CAMPUS_ITEMS,
-      ]
-    : CAMPUS_ITEMS;
+  const items: NavItem[] = canAccessAdmin ? [...CAMPUS_ITEMS, ADMIN_ITEM] : CAMPUS_ITEMS;
 
   async function onLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -69,11 +76,18 @@ export default function AppSidebar({
           <div>
             <h1 className="text-base font-bold text-slate-900 leading-none">Caliber</h1>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              {isPlatform ? "Platform admin" : "Higher education"}
+              {isDemo ? "Demo workspace" : isPlatform ? "Platform admin" : "Higher education"}
             </p>
           </div>
         </div>
       </div>
+
+      {isDemo ? (
+        <div className="mx-3 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <p className="text-[11px] font-semibold text-amber-800">Demo University</p>
+          <p className="text-[11px] text-amber-700 mt-0.5">Sample goals and candidates. Sign in with a campus account for live data.</p>
+        </div>
+      ) : null}
 
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">

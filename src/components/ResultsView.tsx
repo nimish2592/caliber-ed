@@ -1,8 +1,13 @@
 "use client";
 
+import { useState } from "react";
+import { Download, Loader2 } from "lucide-react";
 import { DIMENSION_LABELS, statusLabel } from "@/lib/assessment/profiles";
+import { isQualityCheckKey, type QualityChecks } from "@/lib/assessment/qualityChecks";
 import type { DimensionStatus } from "@/lib/assessment/types";
 import GradeBadge from "@/components/GradeBadge";
+import QualityChecksGrid from "@/components/QualityChecksGrid";
+import { downloadFromApi } from "@/utils/downloadFromApi";
 
 type Dimension = {
   key: string;
@@ -47,6 +52,10 @@ export function ResultsView({
   missingSkills,
   dimensions,
   recommendations,
+  qualityChecks,
+  qualityAverage,
+  reportUrl,
+  reportFileName,
 }: {
   overallScore: number;
   grade?: string;
@@ -57,9 +66,16 @@ export function ResultsView({
   missingSkills?: string[];
   dimensions: Dimension[];
   recommendations: Rec[];
+  qualityChecks?: QualityChecks | null;
+  qualityAverage?: number | null;
+  reportUrl?: string;
+  reportFileName?: string;
 }) {
-  const strengths = [...dimensions].sort((a, b) => b.score - a.score).filter((d) => d.score >= 65).slice(0, 3);
-  const attention = [...dimensions].sort((a, b) => a.score - b.score).filter((d) => d.score < 65).slice(0, 3);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+  const content = dimensions.filter((d) => !isQualityCheckKey(d.key));
+  const strengths = [...content].sort((a, b) => b.score - a.score).filter((d) => d.score >= 65).slice(0, 3);
+  const attention = [...content].sort((a, b) => a.score - b.score).filter((d) => d.score < 65).slice(0, 3);
   const rec = readiness(overallScore);
 
   return (
@@ -69,20 +85,44 @@ export function ResultsView({
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             {goalTitle ? `Graded against ${goalTitle}` : "Your CV grade"}
           </p>
-          <h1 className="text-2xl font-bold text-slate-900 mt-1">Career readiness</h1>
+          <h1 className="text-2xl font-bold text-slate-900 mt-1">Career readiness report</h1>
           <p className="mt-3 max-w-xl text-slate-500 text-sm">{summary}</p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <GradeBadge grade={grade} score={overallScore} />
             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${rec.className}`}>
               {rec.label}
             </span>
+            {reportUrl && (
+              <button
+                type="button"
+                onClick={async () => {
+                  setDownloading(true);
+                  setDownloadError("");
+                  try {
+                    await downloadFromApi(reportUrl, reportFileName || "cv-report.pdf");
+                  } catch (err) {
+                    setDownloadError(err instanceof Error ? err.message : "Could not download the report.");
+                  } finally {
+                    setDownloading(false);
+                  }
+                }}
+                disabled={downloading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                Download report
+              </button>
+            )}
           </div>
+          {downloadError ? <p className="mt-2 text-xs text-red-600">{downloadError}</p> : null}
         </div>
         <div className="text-right">
           <div className="text-6xl font-black text-slate-900">{grade || overallScore}</div>
           <div className="text-xs text-slate-400">{grade ? `${overallScore}/100` : "/100"}</div>
         </div>
       </section>
+
+      <QualityChecksGrid checks={qualityChecks} average={qualityAverage} />
 
       {goalFit && (
         <section className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
@@ -162,7 +202,7 @@ export function ResultsView({
             </tr>
           </thead>
           <tbody>
-            {dimensions.map((d) => (
+            {content.map((d) => (
               <tr key={d.key} className="border-t border-slate-100">
                 <td className="px-4 py-3">
                   <div className="font-medium text-slate-800">{d.label || DIMENSION_LABELS[d.key as keyof typeof DIMENSION_LABELS]}</div>

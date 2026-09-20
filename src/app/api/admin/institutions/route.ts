@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { canAccessAdmin, getSession } from "@/lib/auth/session";
 import {
   addClientUser,
   createClient,
   emailTaken,
   isPlanId,
   listClients,
+  platformUsageTotals,
 } from "@/lib/db/admin";
+import { PLAN_LIMITS } from "@/lib/config";
 
 export const runtime = "nodejs";
 
 async function requirePlatform() {
   const session = await getSession();
-  if (!session?.platform) {
+  if (!canAccessAdmin(session)) {
     return NextResponse.json({ error: "Platform admin access required." }, { status: 403 });
   }
   return null;
@@ -22,7 +24,7 @@ export async function GET() {
   const denied = await requirePlatform();
   if (denied) return denied;
   const institutions = await listClients();
-  return NextResponse.json({ institutions });
+  return NextResponse.json({ institutions, totals: platformUsageTotals(institutions), plans: PLAN_LIMITS });
 }
 
 export async function POST(request: Request) {
@@ -32,6 +34,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const name = String(body.name ?? "").trim();
   const plan = String(body.plan ?? "institution");
+  const annualLimit = Number(body.annualLimit);
   const userName = String(body.user?.name ?? "").trim();
   const userEmail = String(body.user?.email ?? "").trim().toLowerCase();
   const userRole = body.user?.role === "staff" ? "staff" : "admin";
@@ -52,7 +55,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That email is already provisioned on another client." }, { status: 409 });
   }
 
-  const institution = await createClient({ name, plan });
+  let institution;
+  try {
+    institution = await createClient({
+      name,
+      plan,
+      annualLimit: Number.isFinite(annualLimit) && annualLimit !== 0 ? annualLimit : undefined,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Could not create this client." },
+      { status: 400 },
+    );
+  }
   const { user, tempPassword } = await addClientUser({
     institutionId: institution.id,
     name: userName,

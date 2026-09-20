@@ -1,19 +1,24 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
-import { addClientUser, emailTaken, getClient } from "@/lib/db/admin";
+import { canAccessAdmin, getSession } from "@/lib/auth/session";
+import {
+  addClientUser,
+  emailTaken,
+  getClient,
+  setClientUserActive,
+} from "@/lib/db/admin";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session?.platform) {
+  if (!canAccessAdmin(session)) {
     return NextResponse.json({ error: "Platform admin access required." }, { status: 403 });
   }
 
   const { id } = await params;
   const institution = await getClient(id);
   if (!institution || institution.kind !== "campus") {
-    return NextResponse.json({ error: "Client not found." }, { status: 404 });
+    return NextResponse.json({ error: "Organization not found." }, { status: 404 });
   }
 
   const body = await request.json().catch(() => ({}));
@@ -39,4 +44,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
 
   return NextResponse.json(created);
+}
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!canAccessAdmin(session)) {
+    return NextResponse.json({ error: "Platform admin access required." }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const institution = await getClient(id);
+  if (!institution || institution.kind !== "campus") {
+    return NextResponse.json({ error: "Organization not found." }, { status: 404 });
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const userId = String(body.userId ?? "").trim();
+  if (!userId || typeof body.active !== "boolean") {
+    return NextResponse.json({ error: "userId and active are required." }, { status: 400 });
+  }
+
+  const user = await setClientUserActive(id, userId, body.active);
+  if (!user) {
+    return NextResponse.json({ error: "User not found." }, { status: 404 });
+  }
+  return NextResponse.json({ user });
 }

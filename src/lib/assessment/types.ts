@@ -7,6 +7,10 @@ export const DIMENSION_KEYS = [
   "achievements",
   "certifications",
   "formatting",
+  "english",
+  "spacing",
+  "readability",
+  "ats",
   "completeness",
 ] as const;
 
@@ -80,6 +84,9 @@ export type EngineResult = {
   llmGoalFit?: number;
   llmGoalEvidence?: string;
   goalGrade?: GoalGradeSnapshot;
+  promptTokens?: number;
+  completionTokens?: number;
+  aiCostUsd?: number;
 };
 
 export type AssessmentEngine = {

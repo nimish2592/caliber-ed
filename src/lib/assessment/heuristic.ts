@@ -1,4 +1,5 @@
 import { DIMENSION_LABELS, overallHeadline, statusFromScore } from "./profiles";
+import { recommendationsForQuality, scoreQualityChecks } from "./qualityChecks";
 import type {
   AssessmentEngine,
   AssessmentProfile,
@@ -71,19 +72,6 @@ function scoreCertifications(cv: StructuredCv): { score: number; evidence: strin
     score: clamp(72 + Math.min(20, cv.certifications.length * 8)),
     evidence: cv.certifications[0],
   };
-}
-
-function scoreFormatting(cv: StructuredCv, text: string): { score: number; evidence: string } {
-  let score = 50;
-  const notes: string[] = [];
-  if (cv.name) { score += 10; notes.push("name"); }
-  if (cv.email) { score += 10; notes.push("email"); }
-  if (cv.phone) { score += 6; notes.push("phone"); }
-  if (cv.linkedinUrl || cv.githubUrl) { score += 8; notes.push("professional link"); }
-  if (text.length > 400 && text.length < 9000) score += 10;
-  if (cv.presentSections.length >= 5) score += 6;
-  if (text.length < 250) score -= 20;
-  return { score: clamp(score), evidence: notes.length ? `Clear ${notes.join(", ")}.` : "Contact block is incomplete." };
 }
 
 function scoreCompleteness(cv: StructuredCv): { score: number; evidence: string } {
@@ -166,14 +154,6 @@ function recommendationsFor(cv: StructuredCv, dims: DimensionScore[]): Recommend
       detail: "Add a 3–4 line profile stating degree, target role, and 1–2 proof points.",
     });
   }
-  if (scoreOf("formatting") < 70) {
-    recs.push({
-      priority: "medium",
-      dimension: "formatting",
-      title: "Make contact details and structure easier to scan",
-      detail: "Put name, email, phone, and LinkedIn at the top. Use clear section headings.",
-    });
-  }
   if (scoreOf("experience") < 55) {
     recs.push({
       priority: cv.internships.length ? "optional" : "medium",
@@ -194,12 +174,13 @@ function recommendationsFor(cv: StructuredCv, dims: DimensionScore[]): Recommend
   }
 
   const order = { high: 0, medium: 1, optional: 2 };
-  return recs.sort((a, b) => order[a.priority] - order[b.priority]).slice(0, 6);
+  return recs.sort((a, b) => order[a.priority] - order[b.priority]).slice(0, 8);
 }
 
 export const heuristicEngine: AssessmentEngine = {
   name: "heuristic",
   async score({ structured, text, profile }) {
+    const quality = scoreQualityChecks(structured, text);
     const builders: Record<DimensionKey, () => { score: number; evidence: string }> = {
       education: () => scoreEducation(structured),
       skills: () => scoreSkills(structured),
@@ -208,7 +189,11 @@ export const heuristicEngine: AssessmentEngine = {
       projects: () => scoreProjects(structured),
       achievements: () => scoreAchievements(structured),
       certifications: () => scoreCertifications(structured),
-      formatting: () => scoreFormatting(structured, text),
+      formatting: () => quality.formatting,
+      english: () => quality.english,
+      spacing: () => quality.spacing,
+      readability: () => quality.readability,
+      ats: () => quality.ats,
       completeness: () => scoreCompleteness(structured),
     };
 
@@ -226,7 +211,12 @@ export const heuristicEngine: AssessmentEngine = {
 
     const weightSum = dimensions.reduce((s, d) => s + d.weight, 0) || 1;
     const overallScore = clamp(dimensions.reduce((s, d) => s + d.score * d.weight, 0) / weightSum);
-    const recs = recommendationsFor(structured, dimensions);
+    const recs = [
+      ...recommendationsFor(structured, dimensions),
+      ...recommendationsForQuality(quality),
+    ]
+      .filter((rec, index, all) => all.findIndex((r) => r.title === rec.title) === index)
+      .slice(0, 8);
 
     return {
       overallScore,

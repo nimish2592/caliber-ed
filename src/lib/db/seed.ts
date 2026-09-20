@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
-import { appConfig, PLAN_LIMITS } from "../config";
+import { appConfig, PLAN_LIMITS, campusAssessmentDefaults } from "../config";
+import { PLATFORM_ADMIN_EMAILS } from "../auth/platformAdmin";
 import { DEFAULT_HIGHER_ED_PROFILE } from "../assessment/profiles";
 import { DEFAULT_FOCUS_SKILLS, DEFAULT_HE_CONTEXT } from "../goals/defaults";
 import type { DbClient } from "./client";
@@ -15,6 +16,14 @@ function displayNameFromEmail(email: string): string {
   return cleaned.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function billingDates() {
+  const now = new Date();
+  return {
+    periodStart: new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10),
+    renewal: new Date(now.getFullYear() + 1, 0, 1).toISOString().slice(0, 10),
+  };
+}
+
 export const PLATFORM_INSTITUTION_ID = "inst_platform";
 export const DEMO_INSTITUTION_ID = "inst_demo";
 export const DEFAULT_PROFILE_ID = "prof_higher_ed_default";
@@ -28,19 +37,19 @@ export async function seedDatabase(db: DbClient): Promise<void> {
   if (existing.rows.length === 0) {
     await seedInstitutions(db);
   }
+  await ensureDemoCampus(db);
   await ensurePlatformAdmin(db);
   await ensureDemoGoal(db);
+  await backfillCampusModels(db);
 }
 
 async function seedInstitutions(db: DbClient): Promise<void> {
-  const now = new Date();
-  const periodStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
-  const renewal = new Date(now.getFullYear() + 1, 0, 1).toISOString().slice(0, 10);
-  const passwordHash = bcrypt.hashSync(appConfig.demoAdminPassword, 10);
+  const { periodStart, renewal } = billingDates();
+  const live = campusAssessmentDefaults();
 
   await db.query(
-    `INSERT INTO institutions (id, name, slug, kind, student_instructions, retention_days)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+    `INSERT INTO institutions (id, name, slug, kind, student_instructions, retention_days, is_demo, assessment_engine, assessment_model)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
     [
       PLATFORM_INSTITUTION_ID,
       "Caliber Higher Ed",
@@ -48,26 +57,10 @@ async function seedInstitutions(db: DbClient): Promise<void> {
       "platform",
       "Upload your CV to get a career-readiness assessment.",
       365,
+      false,
+      live.engine,
+      live.model,
     ],
-  );
-
-  await db.query(
-    `INSERT INTO institutions (id, name, slug, kind, student_instructions, retention_days)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [
-      DEMO_INSTITUTION_ID,
-      "Demo University",
-      "demo-university",
-      "campus",
-      "Welcome to Demo University Career Readiness. Upload your CV for an assessment you can use for internships and placements.",
-      365,
-    ],
-  );
-
-  await db.query(
-    `INSERT INTO institution_users (id, institution_id, email, display_name, role, password_hash)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [id("usr"), DEMO_INSTITUTION_ID, appConfig.demoAdminEmail, "Campus Admin", "admin", passwordHash],
   );
 
   await db.query(
@@ -81,45 +74,139 @@ async function seedInstitutions(db: DbClient): Promise<void> {
     ],
   );
 
-  for (const inst of [PLATFORM_INSTITUTION_ID, DEMO_INSTITUTION_ID]) {
-    const plan = inst === DEMO_INSTITUTION_ID ? "institution" : "campus";
+  await db.query(
+    `INSERT INTO subscriptions (id, institution_id, plan, annual_limit, assessments_used, period_start, renewal_date)
+     VALUES ($1, $2, $3, $4, 0, $5::date, $6::date)`,
+    [id("sub"), PLATFORM_INSTITUTION_ID, "campus", PLAN_LIMITS.campus, periodStart, renewal],
+  );
+  await db.query(
+    `INSERT INTO usage (id, institution_id, period_start, assessments_used)
+     VALUES ($1, $2, $3::date, 0)`,
+    [id("use"), PLATFORM_INSTITUTION_ID, periodStart],
+  );
+
+  await ensureDemoCampus(db);
+}
+
+async function ensureDemoCampus(db: DbClient): Promise<void> {
+  const { periodStart, renewal } = billingDates();
+  const inst = await db.query<{ id: string }>("SELECT id FROM institutions WHERE id = $1", [DEMO_INSTITUTION_ID]);
+  if (inst.rows.length === 0) {
     await db.query(
-      `INSERT INTO subscriptions (id, institution_id, plan, annual_limit, assessments_used, period_start, renewal_date)
-       VALUES ($1, $2, $3, $4, 0, $5::date, $6::date)`,
-      [id("sub"), inst, plan, PLAN_LIMITS[plan], periodStart, renewal],
+      `INSERT INTO institutions (id, name, slug, kind, student_instructions, retention_days, is_demo, assessment_engine, assessment_model)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        DEMO_INSTITUTION_ID,
+        "Demo University",
+        "demo-university",
+        "campus",
+        "Welcome to Demo University Career Readiness. Upload your CV for an assessment you can use for internships and placements.",
+        365,
+        true,
+        "heuristic",
+        "",
+      ],
     );
+  } else {
     await db.query(
-      `INSERT INTO usage (id, institution_id, period_start, assessments_used)
-       VALUES ($1, $2, $3::date, 0)`,
-      [id("use"), inst, periodStart],
+      `UPDATE institutions
+       SET is_demo = true, assessment_engine = 'heuristic', assessment_model = ''
+       WHERE id = $1`,
+      [DEMO_INSTITUTION_ID],
     );
   }
 
-  await db.query(
-    `INSERT INTO events (id, institution_id, name, public_slug, public_code, instructions)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [
-      DEMO_EVENT_ID,
-      DEMO_INSTITUTION_ID,
-      "ABC University Career Fair 2026",
-      "career-fair-2026",
-      "CF-2026-DEMO",
-      "Scan, upload your CV, and get a career-readiness assessment in a few minutes.",
-    ],
+  const user = await db.query<{ id: string }>(
+    "SELECT id FROM institution_users WHERE institution_id = $1 AND lower(email) = lower($2)",
+    [DEMO_INSTITUTION_ID, appConfig.demoAdminEmail],
   );
+  if (user.rows.length === 0) {
+    const passwordHash = bcrypt.hashSync(appConfig.demoAdminPassword, 10);
+    await db.query(
+      `INSERT INTO institution_users (id, institution_id, email, display_name, role, password_hash)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id("usr"), DEMO_INSTITUTION_ID, appConfig.demoAdminEmail, "Campus Admin", "admin", passwordHash],
+    );
+  }
+
+  const sub = await db.query<{ id: string }>("SELECT id FROM subscriptions WHERE institution_id = $1", [
+    DEMO_INSTITUTION_ID,
+  ]);
+  if (sub.rows.length === 0) {
+    await db.query(
+      `INSERT INTO subscriptions (id, institution_id, plan, annual_limit, assessments_used, period_start, renewal_date)
+       VALUES ($1, $2, $3, $4, 0, $5::date, $6::date)`,
+      [id("sub"), DEMO_INSTITUTION_ID, "institution", PLAN_LIMITS.institution, periodStart, renewal],
+    );
+  }
+
+  const usage = await db.query<{ id: string }>("SELECT id FROM usage WHERE institution_id = $1", [DEMO_INSTITUTION_ID]);
+  if (usage.rows.length === 0) {
+    await db.query(
+      `INSERT INTO usage (id, institution_id, period_start, assessments_used)
+       VALUES ($1, $2, $3::date, 0)`,
+      [id("use"), DEMO_INSTITUTION_ID, periodStart],
+    );
+  }
+
+  const event = await db.query<{ id: string }>("SELECT id FROM events WHERE id = $1", [DEMO_EVENT_ID]);
+  if (event.rows.length === 0) {
+    await db.query(
+      `INSERT INTO events (id, institution_id, name, public_slug, public_code, instructions)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        DEMO_EVENT_ID,
+        DEMO_INSTITUTION_ID,
+        "ABC University Career Fair 2026",
+        "career-fair-2026",
+        "CF-2026-DEMO",
+        "Scan, upload your CV, and get a career-readiness assessment in a few minutes.",
+      ],
+    );
+  }
 }
 
 async function ensurePlatformAdmin(db: DbClient): Promise<void> {
-  const existing = await db.query<{ id: string }>(
-    "SELECT id FROM institution_users WHERE institution_id = $1 AND lower(email) = lower($2)",
-    [PLATFORM_INSTITUTION_ID, appConfig.platformAdminEmail],
-  );
-  if (existing.rows.length > 0) return;
-  const passwordHash = bcrypt.hashSync(appConfig.platformAdminPassword, 10);
+  const emails = new Set<string>([
+    ...PLATFORM_ADMIN_EMAILS.map((e) => e.toLowerCase()),
+    appConfig.platformAdminEmail.toLowerCase(),
+    ...appConfig.platformAdminEmailsExtra,
+  ]);
+
+  for (const email of emails) {
+    if (!email) continue;
+    const existing = await db.query<{ id: string }>(
+      "SELECT id FROM institution_users WHERE institution_id = $1 AND lower(email) = lower($2)",
+      [PLATFORM_INSTITUTION_ID, email],
+    );
+    if (existing.rows.length > 0) {
+      await db.query(
+        `UPDATE institution_users
+         SET active = true, role = 'admin'
+         WHERE institution_id = $1 AND lower(email) = lower($2)`,
+        [PLATFORM_INSTITUTION_ID, email],
+      );
+      continue;
+    }
+    const passwordHash = bcrypt.hashSync(appConfig.platformAdminPassword, 10);
+    await db.query(
+      `INSERT INTO institution_users (id, institution_id, email, display_name, role, password_hash, active)
+       VALUES ($1, $2, $3, $4, $5, $6, true)`,
+      [id("usr"), PLATFORM_INSTITUTION_ID, email, displayNameFromEmail(email), "admin", passwordHash],
+    );
+  }
+
+  await db.query(`UPDATE institutions SET active = true WHERE id = $1`, [PLATFORM_INSTITUTION_ID]);
+}
+
+async function backfillCampusModels(db: DbClient): Promise<void> {
+  const live = campusAssessmentDefaults();
   await db.query(
-    `INSERT INTO institution_users (id, institution_id, email, display_name, role, password_hash)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [id("usr"), PLATFORM_INSTITUTION_ID, appConfig.platformAdminEmail, displayNameFromEmail(appConfig.platformAdminEmail), "admin", passwordHash],
+    `UPDATE institutions
+     SET assessment_engine = $1, assessment_model = $2
+     WHERE COALESCE(is_demo, false) = false
+       AND (assessment_model IS NULL OR assessment_model = '')`,
+    [live.engine, live.model],
   );
 }
 

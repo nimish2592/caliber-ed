@@ -1,3 +1,4 @@
+import type { QualityChecks } from "../assessment/qualityChecks";
 import type { GoalFitBreakdown } from "../grading/goalGrade";
 
 export type ScoringWeights = {
@@ -56,6 +57,10 @@ export type RankingPayload = {
   resume_text: string;
   candidate_email: string | null;
   goal_fit?: GoalFitBreakdown;
+  quality_checks?: QualityChecks;
+  quality_average?: number;
+  recommendations?: { priority: string; title: string; detail: string; dimension?: string }[];
+  dimension_scores?: { key: string; label: string; score: number; status: string; evidence: string }[];
 };
 
 export type RankedCv = RankingPayload & {

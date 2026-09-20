@@ -5,7 +5,7 @@ import {
   exchangeGoogleCode,
   readGoogleStateCookie,
 } from "@/lib/auth/google";
-import { findUserByEmail, sessionFromUser, setSessionCookie } from "@/lib/auth/session";
+import { canAccessAdmin, canSignIn, findUserByEmail, sessionFromUser, setSessionCookie } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -34,10 +34,11 @@ export async function GET(request: Request) {
     const profile = await exchangeGoogleCode(code);
     const user = await findUserByEmail(profile.email);
     if (!user) return loginRedirect("not_provisioned");
+    if (!canSignIn(user)) return loginRedirect("deactivated");
 
     const session = sessionFromUser(user);
     await setSessionCookie(session);
-    return NextResponse.redirect(`${appConfig.appUrl}${session.platform ? "/admin" : "/"}`);
+    return NextResponse.redirect(`${appConfig.appUrl}${canAccessAdmin(session) ? "/admin" : "/"}`);
   } catch {
     return loginRedirect("oauth_failed");
   }

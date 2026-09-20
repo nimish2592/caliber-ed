@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { DIMENSION_LABELS } from "@/lib/assessment/profiles";
+import { qualityAverage } from "@/lib/assessment/qualityChecks";
 import { getAssessmentDetails, getAssessmentForAccess, getAssessmentForInstitution, getGoalById } from "@/lib/db/queries";
 import { letterGradeFromScore } from "@/lib/grading/letterGrade";
+import { resolveQualityChecks } from "@/lib/share/publicReport";
 
 export const runtime = "nodejs";
 
@@ -44,6 +46,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const goal = assessment.goal_id
     ? await getGoalById(assessment.goal_id, assessment.institution_id)
     : null;
+  const qualityChecks = resolveQualityChecks({ ranking, dimensions });
 
   return NextResponse.json({
     id: assessment.id,
@@ -59,5 +62,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     missingSkills: ranking?.missing_skills ?? [],
     dimensions,
     recommendations: details.recommendations,
+    qualityChecks,
+    qualityAverage: ranking?.quality_average ?? (qualityChecks ? qualityAverage(qualityChecks) : null),
+    candidateName: ranking?.candidate_name || assessment.candidate_name,
   });
 }

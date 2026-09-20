@@ -1,15 +1,20 @@
 import { applyGoalGrade } from "../grading/apply";
 import { heuristicEngine } from "./heuristic";
-import { openaiEngine } from "./openai";
+import { createOpenaiEngine } from "./openai";
 import { DEFAULT_HIGHER_ED_PROFILE } from "./profiles";
 import type { AssessmentEngine, AssessmentProfile, EngineResult, StructuredCv, GoalContext } from "./types";
 import { appConfig } from "../config";
 import { extractStructuredCv } from "./extractStructured";
 import { extractCvText } from "./extractText";
 
-export function getAssessmentEngine(): AssessmentEngine {
-  if (appConfig.assessmentEngine === "openai" && appConfig.openaiKey) {
-    return openaiEngine;
+export function getAssessmentEngine(settings?: {
+  engine?: string | null;
+  model?: string | null;
+}): AssessmentEngine {
+  const engine = (settings?.engine || appConfig.assessmentEngine).toLowerCase();
+  const model = settings?.model?.trim() || appConfig.openaiModel;
+  if (engine === "openai" && appConfig.openaiKey) {
+    return createOpenaiEngine(model);
   }
   return heuristicEngine;
 }
@@ -20,6 +25,8 @@ export async function analyzeCv(params: {
   mimeType: string;
   profile?: AssessmentProfile;
   goal?: GoalContext;
+  engine?: string | null;
+  model?: string | null;
 }): Promise<{ text: string; structured: StructuredCv; result: EngineResult }> {
   const profile = params.profile ?? DEFAULT_HIGHER_ED_PROFILE;
   const text = await extractCvText(params.bytes, params.fileName, params.mimeType);
@@ -27,7 +34,7 @@ export async function analyzeCv(params: {
     throw new Error("We could not read enough text from that file. Try a text-based PDF or DOCX.");
   }
   const structured = extractStructuredCv(text);
-  const engine = getAssessmentEngine();
+  const engine = getAssessmentEngine({ engine: params.engine, model: params.model });
   const finish = (result: EngineResult) => {
     const graded = applyGoalGrade(result, { structured, text, goal: params.goal });
     return { text, structured, result: graded };

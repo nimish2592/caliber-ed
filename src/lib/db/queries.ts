@@ -17,7 +17,13 @@ export type InstitutionRow = {
   student_instructions: string;
   retention_days: number;
   show_student_identities: boolean;
+  is_demo: boolean;
+  assessment_engine: string;
+  assessment_model: string;
 };
+
+const INSTITUTION_COLUMNS =
+  "id, name, slug, kind, logo_url, branding, student_instructions, retention_days, show_student_identities, COALESCE(is_demo, false) AS is_demo, COALESCE(assessment_engine, 'heuristic') AS assessment_engine, COALESCE(assessment_model, '') AS assessment_model";
 
 export type EventRow = {
   id: string;
@@ -161,7 +167,7 @@ function slugify(value: string): string {
 
 export async function getInstitution(id: string): Promise<InstitutionRow | null> {
   return dbOne<InstitutionRow>(
-    `SELECT id, name, slug, kind, logo_url, branding, student_instructions, retention_days, show_student_identities
+    `SELECT ${INSTITUTION_COLUMNS}
      FROM institutions WHERE id = $1`,
     [id],
   );
@@ -211,18 +217,66 @@ export async function createEvent(params: {
   return row;
 }
 
+function asInt(value: number | string | null | undefined): number {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export async function getSubscription(institutionId: string): Promise<SubscriptionRow | null> {
-  return dbOne<SubscriptionRow>(
+  const row = await dbOne<SubscriptionRow>(
     `SELECT institution_id, plan, annual_limit, assessments_used, period_start::text, renewal_date::text
      FROM subscriptions WHERE institution_id = $1`,
     [institutionId],
   );
+  if (!row) return null;
+  return {
+    ...row,
+    annual_limit: asInt(row.annual_limit),
+    assessments_used: asInt(row.assessments_used),
+  };
+}
+
+export type UsageStats = {
+  plan: string;
+  annualLimit: number;
+  analysed: number;
+  remaining: number;
+  periodStart: string;
+  renewalDate: string;
+  percentUsed: number;
+};
+
+export async function getUsageStats(institutionId: string): Promise<UsageStats | null> {
+  const sub = await getSubscription(institutionId);
+  if (!sub) return null;
+  const row = await dbOne<{ completed: number | string }>(
+    `SELECT COUNT(*)::int AS completed
+     FROM assessments
+     WHERE institution_id = $1
+       AND status = 'completed'
+       AND created_at >= $2::date`,
+    [institutionId, sub.period_start],
+  );
+  const analysed = Math.max(sub.assessments_used, asInt(row?.completed));
+  const annualLimit = sub.annual_limit;
+  const remaining = Math.max(0, annualLimit - analysed);
+  const percentUsed = annualLimit > 0 ? Math.min(100, Math.round((analysed / annualLimit) * 100)) : 0;
+  return {
+    plan: sub.plan,
+    annualLimit,
+    analysed,
+    remaining,
+    periodStart: sub.period_start,
+    renewalDate: sub.renewal_date,
+    percentUsed,
+  };
 }
 
 export async function assertWithinLimit(institutionId: string): Promise<SubscriptionRow> {
   const sub = await getSubscription(institutionId);
   if (!sub) throw new Error("No subscription found for this institution");
-  if (sub.assessments_used >= sub.annual_limit) {
+  const usage = await getUsageStats(institutionId);
+  if (usage && usage.remaining <= 0) {
     throw new Error("This institution has reached its annual assessment limit.");
   }
   return sub;
@@ -319,7 +373,8 @@ export async function completeAssessment(params: {
     `UPDATE assessments
      SET student_id = $2, document_id = $3, status = 'completed', overall_score = $4,
          summary = $5, engine = $6, completed_at = now(), error = NULL,
-         candidate_name = $8, ranking = $9::jsonb, candidate_id = $10
+         candidate_name = $8, ranking = $9::jsonb, candidate_id = $10,
+         prompt_tokens = $11, completion_tokens = $12, ai_cost_usd = $13
      WHERE id = $1 AND institution_id = $7`,
     [
       params.assessmentId,
@@ -332,6 +387,9 @@ export async function completeAssessment(params: {
       params.ranking.candidate_name,
       JSON.stringify(params.ranking),
       params.candidateId,
+      params.result.promptTokens ?? 0,
+      params.result.completionTokens ?? 0,
+      params.result.aiCostUsd ?? 0,
     ],
   );
 

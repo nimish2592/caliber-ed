@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getPublicCvShare } from "@/lib/db/queries";
+import { DIMENSION_LABELS } from "@/lib/assessment/profiles";
+import { getAssessmentDetails, getPublicCvShare } from "@/lib/db/queries";
 import { publicShareReport } from "@/lib/share/publicReport";
 
 export const runtime = "nodejs";
@@ -11,6 +12,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: "This share link is invalid or no longer active." }, { status: 404 });
   }
 
+  const details = await getAssessmentDetails(shared.assessment.id, shared.assessment.institution_id);
+
   return NextResponse.json({
     report: publicShareReport({
       ranking: shared.assessment.ranking,
@@ -20,6 +23,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
       goalCode: shared.goalCode,
       score: shared.assessment.overall_score,
       canDownloadCv: Boolean(shared.document?.storage_path || shared.assessment.ranking?.resume_text),
+      dimensions: details.dimensions.map((d) => ({
+        key: d.dimension,
+        label: DIMENSION_LABELS[d.dimension as keyof typeof DIMENSION_LABELS] ?? d.dimension,
+        score: d.score,
+        status: d.status,
+        evidence: d.evidence,
+      })),
+      recommendations: details.recommendations,
     }),
   });
 }

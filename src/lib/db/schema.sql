@@ -8,8 +8,17 @@ CREATE TABLE IF NOT EXISTS institutions (
   student_instructions text NOT NULL DEFAULT '',
   retention_days integer NOT NULL DEFAULT 365,
   show_student_identities boolean NOT NULL DEFAULT false,
+  is_demo boolean NOT NULL DEFAULT false,
+  assessment_engine text NOT NULL DEFAULT 'heuristic',
+  assessment_model text NOT NULL DEFAULT '',
+  active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS assessment_engine text NOT NULL DEFAULT 'heuristic';
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS assessment_model text NOT NULL DEFAULT '';
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
 
 CREATE TABLE IF NOT EXISTS institution_users (
   id text PRIMARY KEY,
@@ -18,12 +27,16 @@ CREATE TABLE IF NOT EXISTS institution_users (
   display_name text NOT NULL DEFAULT '',
   role text NOT NULL DEFAULT 'admin',
   password_hash text NOT NULL,
+  active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (institution_id, email)
 );
 
 ALTER TABLE institution_users ALTER COLUMN password_hash SET DEFAULT '';
+ALTER TABLE institution_users ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_global ON institution_users (lower(email));
+CREATE INDEX IF NOT EXISTS idx_institutions_active ON institutions (active);
+CREATE INDEX IF NOT EXISTS idx_institution_users_active ON institution_users (active);
 
 CREATE TABLE IF NOT EXISTS assessment_profiles (
   id text PRIMARY KEY,
@@ -221,4 +234,8 @@ CREATE TABLE IF NOT EXISTS cv_shares (
 
 CREATE INDEX IF NOT EXISTS idx_cv_shares_assessment ON cv_shares(assessment_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_cv_shares_token ON cv_shares(share_token);
+
+ALTER TABLE assessments ADD COLUMN IF NOT EXISTS prompt_tokens integer NOT NULL DEFAULT 0;
+ALTER TABLE assessments ADD COLUMN IF NOT EXISTS completion_tokens integer NOT NULL DEFAULT 0;
+ALTER TABLE assessments ADD COLUMN IF NOT EXISTS ai_cost_usd numeric(12, 6) NOT NULL DEFAULT 0;
 

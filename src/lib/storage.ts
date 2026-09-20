@@ -90,26 +90,34 @@ function useSupabaseStorage(): boolean {
   return false;
 }
 
+async function writeLocalFile(objectPath: string, bytes: Uint8Array): Promise<string> {
+  const absolute = path.join(process.cwd(), appConfig.storageDir, objectPath);
+  await mkdir(path.dirname(absolute), { recursive: true });
+  await writeFile(absolute, Buffer.from(bytes));
+  return objectPath;
+}
+
 export async function saveStoredFile(params: {
   objectPath: string;
   mimeType?: string;
   bytes: Uint8Array;
 }): Promise<string> {
   if (useSupabaseStorage()) {
-    const bucket = await ensureCvBucket();
-    const supabase = getSupabaseAdmin();
-    const { error } = await supabase.storage.from(bucket).upload(params.objectPath, params.bytes, {
-      contentType: params.mimeType || "application/octet-stream",
-      upsert: true,
-    });
-    if (error) throw new Error(`Could not store file in Supabase: ${error.message}`);
-    return params.objectPath;
+    try {
+      const bucket = await ensureCvBucket();
+      const supabase = getSupabaseAdmin();
+      const { error } = await supabase.storage.from(bucket).upload(params.objectPath, params.bytes, {
+        contentType: params.mimeType || "application/octet-stream",
+        upsert: true,
+      });
+      if (error) throw new Error(`Could not store file in Supabase: ${error.message}`);
+      return params.objectPath;
+    } catch (err) {
+      console.warn("[storage] Supabase upload failed; writing locally.", err);
+    }
   }
 
-  const absolute = path.join(process.cwd(), appConfig.storageDir, params.objectPath);
-  await mkdir(path.dirname(absolute), { recursive: true });
-  await writeFile(absolute, Buffer.from(params.bytes));
-  return params.objectPath;
+  return writeLocalFile(params.objectPath, params.bytes);
 }
 
 export async function saveCvFile(params: {
@@ -129,10 +137,13 @@ export async function saveCvFile(params: {
 
 export async function readCvFile(storagePath: string): Promise<Buffer> {
   if (useSupabaseStorage()) {
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase.storage.from(appConfig.storageBucket).download(storagePath);
-    if (error || !data) throw new Error(error?.message || "CV file was not found in storage.");
-    return Buffer.from(await data.arrayBuffer());
+    try {
+      const supabase = getSupabaseAdmin();
+      const { data, error } = await supabase.storage.from(appConfig.storageBucket).download(storagePath);
+      if (!error && data) return Buffer.from(await data.arrayBuffer());
+    } catch {
+      // Fall through to local disk when the original blob is only available there.
+    }
   }
   const absolute = path.join(process.cwd(), appConfig.storageDir, storagePath);
   return readFile(absolute);

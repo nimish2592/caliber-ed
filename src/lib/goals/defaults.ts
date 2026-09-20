@@ -9,8 +9,10 @@ Look for:
 - Projects with tools used and measurable outcomes
 - Achievements, awards, or leadership
 - Professional formatting, contact details, and a short profile summary
+- Clear English, consistent spacing, and readable one-page layout
+- ATS-friendly structure (standard headings, parseable text, no tables or scanned images)
 
-Penalize missing sections, generic bullets, and lack of evidence. Do not reject a student for having little full-time experience.`;
+Penalize missing sections, generic bullets, weak English, cramped or sparse layout, and CVs that parsers cannot read. Do not reject a student for having little full-time experience.`;
 
 export const DEFAULT_FOCUS_SKILLS = [
   "communication",

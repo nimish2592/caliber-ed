@@ -91,6 +91,9 @@ async function runAssessment(params: {
   goal: GoalRow;
   uploadedByEmail?: string | null;
 }): Promise<void> {
+  const institution = await getInstitution(params.institutionId);
+  if (!institution) throw new Error("Institution not found.");
+
   const { text, structured, result } = await analyzeCv({
     bytes: params.bytes,
     fileName: params.fileName,
@@ -101,6 +104,8 @@ async function runAssessment(params: {
       contextText: params.goal.context_text,
       focusSkills: params.goal.focus_skills,
     },
+    engine: institution.assessment_engine,
+    model: institution.assessment_model,
   });
 
   const ranking = buildRanking({
@@ -118,9 +123,6 @@ async function runAssessment(params: {
     email: structured.email,
     displayName: structured.name || ranking.candidate_name || "Student",
   });
-
-  const institution = await getInstitution(params.institutionId);
-  if (!institution) throw new Error("Institution not found.");
 
   const documentId = newId("doc");
   const contentHash = await sha256Hex(params.bytes);

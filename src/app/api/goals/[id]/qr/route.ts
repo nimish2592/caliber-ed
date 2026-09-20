@@ -18,8 +18,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!goal) return NextResponse.json({ error: "Goal not found" }, { status: 404 });
 
   const url = `${appConfig.appUrl}/g/${goal.public_slug}`;
-  const format = new URL(request.url).searchParams.get("format") === "svg" ? "svg" : "png";
+  const search = new URL(request.url).searchParams;
+  const format = search.get("format") === "svg" ? "svg" : "png";
+  const inline = search.get("inline") === "1";
   const base = downloadFileName(`${goal.goal_code}-student-qr`);
+  const disposition = inline
+    ? `inline; filename="${base}.${format}"`
+    : `attachment; filename="${base}.${format}"`;
 
   if (format === "svg") {
     const svg = await QRCode.toString(url, {
@@ -32,7 +37,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return new NextResponse(svg, {
       headers: {
         "Content-Type": "image/svg+xml; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${base}.svg"`,
+        "Content-Disposition": disposition,
         "Cache-Control": "private, max-age=3600",
       },
     });
@@ -45,6 +50,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     color: QR_COLOR,
     errorCorrectionLevel: "H",
   });
+
+  if (inline) {
+    return new NextResponse(Buffer.from(png), {
+      headers: {
+        "Content-Type": "image/png",
+        "Content-Disposition": disposition,
+        "Cache-Control": "private, max-age=3600",
+      },
+    });
+  }
+
   return fileDownloadResponse({
     bytes: new Uint8Array(png),
     fileName: `${base}.png`,

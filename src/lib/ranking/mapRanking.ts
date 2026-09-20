@@ -1,3 +1,4 @@
+import { qualityAverage, qualityChecksFromDimensions } from "../assessment/qualityChecks";
 import type { EngineResult, StructuredCv } from "../assessment/types";
 import { gradeAgainstGoal } from "../grading/goalGrade";
 import { letterGradeFromScore } from "../grading/letterGrade";
@@ -56,6 +57,7 @@ export function buildRanking(params: {
   const redFlags = result.recommendations.filter((r) => r.priority === "high").map((r) => r.title);
   const overall = result.overallScore;
   const years = structured.internships.length + structured.experience.length;
+  const qualityChecks = qualityChecksFromDimensions(result.dimensions);
 
   return {
     candidate_name: structured.name || "Unknown",
@@ -80,5 +82,15 @@ export function buildRanking(params: {
     resume_text: text.slice(0, 50_000),
     candidate_email: structured.email,
     goal_fit: graded.fit,
+    quality_checks: qualityChecks,
+    quality_average: qualityAverage(qualityChecks),
+    recommendations: result.recommendations,
+    dimension_scores: result.dimensions.map((d) => ({
+      key: d.key,
+      label: d.label,
+      score: d.score,
+      status: d.status,
+      evidence: d.evidence,
+    })),
   };
 }

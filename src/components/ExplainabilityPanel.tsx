@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X, CheckCircle2, AlertTriangle, Star, TrendingUp, BookOpen, Award, Tag, Briefcase, ThumbsUp, Minus, GraduationCap, ShieldAlert, ShieldCheck, Download, Share2, Loader2 } from "lucide-react";
+import { X, CheckCircle2, AlertTriangle, Star, TrendingUp, BookOpen, Award, Tag, Briefcase, ThumbsUp, Minus, GraduationCap, ShieldAlert, ShieldCheck, Download, Share2, Loader2, FileText } from "lucide-react";
 import type { DimensionScores, RankedCv, ScoringWeights } from "@/lib/ranking/types";
 import { DEFAULT_WEIGHTS } from "@/lib/ranking/types";
 import ShareCvModal from "@/components/ShareCvModal";
+import QualityChecksGrid from "@/components/QualityChecksGrid";
 import { downloadFromApi } from "@/utils/downloadFromApi";
+import { studentReportFileName } from "@/lib/share/publicReport";
 
 const DIMENSION_META: {
   key: keyof DimensionScores;
@@ -50,7 +52,7 @@ export default function ExplainabilityPanel({
   onClose: () => void;
 }) {
   const [sharing, setSharing] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  const [downloading, setDownloading] = useState<"cv" | "report" | "">("");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -170,6 +172,8 @@ export default function ExplainabilityPanel({
               </div>
             )}
 
+            <QualityChecksGrid checks={resume.quality_checks} average={resume.quality_average} />
+
             <div>
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Score breakdown</h3>
               <div className="space-y-3">
@@ -259,19 +263,38 @@ export default function ExplainabilityPanel({
             </button>
             <button
               type="button"
-              disabled={downloading}
+              disabled={downloading === "report"}
               onClick={async () => {
-                setDownloading(true);
+                setDownloading("report");
+                try {
+                  await downloadFromApi(
+                    `/api/assessments/${resume.id}/report`,
+                    studentReportFileName(resume.candidate_name || "student"),
+                  );
+                } finally {
+                  setDownloading("");
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-xs font-medium rounded-lg"
+            >
+              {downloading === "report" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+              Report
+            </button>
+            <button
+              type="button"
+              disabled={downloading === "cv"}
+              onClick={async () => {
+                setDownloading("cv");
                 try {
                   await downloadFromApi(`/api/assessments/${resume.id}/cv`, resume.file_name || "CV.pdf");
                 } finally {
-                  setDownloading(false);
+                  setDownloading("");
                 }
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg"
             >
-              {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              Download CV
+              {downloading === "cv" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              CV
             </button>
           </div>
         </div>

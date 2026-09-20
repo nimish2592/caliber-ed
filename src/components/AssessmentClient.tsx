@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import LoadingOverlay from "./LoadingOverlay";
 import { ResultsView } from "./ResultsView";
+import type { QualityChecks } from "@/lib/assessment/qualityChecks";
+import { studentReportFileName } from "@/lib/share/publicReport";
 
 type Payload = {
   status: string;
@@ -16,6 +18,9 @@ type Payload = {
   missingSkills?: string[];
   dimensions?: Array<{ key: string; label: string; score: number; status: string; evidence: string }>;
   recommendations?: Array<{ priority: string; title: string; detail: string }>;
+  qualityChecks?: QualityChecks | null;
+  qualityAverage?: number | null;
+  candidateName?: string;
 };
 
 export function AssessmentClient({ id, token }: { id: string; token: string }) {
@@ -61,6 +66,10 @@ export function AssessmentClient({ id, token }: { id: string; token: string }) {
       missingSkills={data.missingSkills ?? []}
       dimensions={data.dimensions ?? []}
       recommendations={data.recommendations ?? []}
+      qualityChecks={data.qualityChecks}
+      qualityAverage={data.qualityAverage}
+      reportUrl={`/api/assessments/${id}/report?token=${encodeURIComponent(token)}`}
+      reportFileName={studentReportFileName(data.candidateName || "student")}
     />
   );
 }

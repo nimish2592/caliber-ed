@@ -69,7 +69,7 @@ export default function ShareCvModal({
               <Share2 className="w-4 h-4 text-blue-600" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-slate-900">Share candidate report</h2>
+              <h2 className="text-sm font-semibold text-slate-900">Share student report</h2>
               <p className="text-xs text-slate-500 mt-0.5 truncate">
                 {resume.candidate_name || "Student"} · {resume.file_name}
               </p>
@@ -90,7 +90,7 @@ export default function ShareCvModal({
           ) : (
             <>
               <p className="text-sm text-slate-600">
-                Anyone with this link can view the score and download the CV. No sign-in required.
+                Anyone with this link can view the student report — grade, quality checks, and recommendations — and download the PDF or CV. No sign-in required.
               </p>
               <div className="p-3 rounded-xl border border-blue-200 bg-blue-50">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 mb-2">

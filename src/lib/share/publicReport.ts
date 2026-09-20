@@ -1,4 +1,27 @@
+import { extractStructuredCv } from "@/lib/assessment/extractStructured";
+import { DIMENSION_LABELS } from "@/lib/assessment/profiles";
+import {
+  QUALITY_CHECK_KEYS,
+  qualityAverage,
+  qualityChecksFromDimensions,
+  scoreQualityChecks,
+  type QualityChecks,
+} from "@/lib/assessment/qualityChecks";
 import type { RankingPayload } from "@/lib/ranking/types";
+
+export type StudentReportDimension = {
+  key: string;
+  label: string;
+  score: number;
+  status?: string;
+  evidence: string;
+};
+
+export type StudentReportRecommendation = {
+  priority: string;
+  title: string;
+  detail: string;
+};
 
 export type PublicShareReport = {
   candidateName: string;
@@ -16,7 +39,34 @@ export type PublicShareReport = {
   redFlags: string[];
   canDownloadCv: boolean;
   goalFit: RankingPayload["goal_fit"] | null;
+  qualityChecks: QualityChecks | null;
+  qualityAverage: number | null;
+  dimensions: StudentReportDimension[];
+  recommendations: StudentReportRecommendation[];
+  generatedAt: string;
 };
+
+function hasQualityScores(checks?: QualityChecks | null): checks is QualityChecks {
+  if (!checks) return false;
+  return QUALITY_CHECK_KEYS.some((key) => (checks[key]?.score ?? 0) > 0 || Boolean(checks[key]?.evidence));
+}
+
+export function resolveQualityChecks(params: {
+  ranking: RankingPayload | null;
+  dimensions?: StudentReportDimension[];
+}): QualityChecks | null {
+  const ranking = params.ranking;
+  if (hasQualityScores(ranking?.quality_checks)) return ranking.quality_checks;
+  if (params.dimensions?.length) {
+    const fromDims = qualityChecksFromDimensions(params.dimensions);
+    if (hasQualityScores(fromDims)) return fromDims;
+  }
+  const text = ranking?.resume_text?.trim();
+  if (text && text.length > 40) {
+    return scoreQualityChecks(extractStructuredCv(text), text);
+  }
+  return null;
+}
 
 export function publicShareReport(params: {
   ranking: RankingPayload | null;
@@ -26,8 +76,21 @@ export function publicShareReport(params: {
   goalCode: string;
   score: number | null;
   canDownloadCv: boolean;
+  dimensions?: StudentReportDimension[];
+  recommendations?: StudentReportRecommendation[];
 }): PublicShareReport {
   const ranking = params.ranking;
+  const dimensions =
+    params.dimensions?.length
+      ? params.dimensions
+      : (ranking?.dimension_scores ?? []).map((d) => ({
+          key: d.key,
+          label: d.label || DIMENSION_LABELS[d.key as keyof typeof DIMENSION_LABELS] || d.key,
+          score: d.score,
+          status: d.status,
+          evidence: d.evidence,
+        }));
+  const qualityChecks = resolveQualityChecks({ ranking, dimensions });
   return {
     candidateName: ranking?.candidate_name || params.candidateName || "Student",
     fileName: ranking?.file_name || params.fileName || "CV",
@@ -44,5 +107,25 @@ export function publicShareReport(params: {
     redFlags: ranking?.red_flags ?? [],
     canDownloadCv: params.canDownloadCv,
     goalFit: ranking?.goal_fit ?? null,
+    qualityChecks,
+    qualityAverage: ranking?.quality_average ?? (qualityChecks ? qualityAverage(qualityChecks) : null),
+    dimensions,
+    recommendations: params.recommendations?.length
+      ? params.recommendations
+      : (ranking?.recommendations ?? []).map((r) => ({
+          priority: r.priority,
+          title: r.title,
+          detail: r.detail,
+        })),
+    generatedAt: new Date().toISOString(),
   };
+}
+
+export function studentReportFileName(candidateName: string): string {
+  const slug = (candidateName || "student")
+    .trim()
+    .replace(/[/\\?%*:|"<>]/g, "-")
+    .replace(/\s+/g, "-")
+    .slice(0, 60);
+  return `${slug || "student"}-cv-report.pdf`;
 }

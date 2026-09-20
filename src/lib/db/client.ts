@@ -62,10 +62,25 @@ async function createPgliteClient(): Promise<DbClient> {
   };
 }
 
+function databaseHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "postgres";
+  }
+}
+
 async function initDb(): Promise<DbClient> {
-  const client = appConfig.databaseUrl
+  const usingPostgres = Boolean(appConfig.databaseUrl);
+  const client = usingPostgres
     ? await createPostgresClient(appConfig.databaseUrl)
     : await createPgliteClient();
+
+  console.log(
+    usingPostgres
+      ? `[db] Supabase Postgres at ${databaseHost(appConfig.databaseUrl)}`
+      : "[db] Local PGlite at .data/pglite (set DATABASE_URL or SUPABASE_DB_PASSWORD to use Supabase)",
+  );
 
   await client.exec(schemaSql());
   await seedDatabase(client);

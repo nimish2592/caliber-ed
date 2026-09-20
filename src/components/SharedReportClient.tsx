@@ -5,7 +5,9 @@ import {
   AlertCircle, AlertTriangle, Award, BookOpen, Briefcase, CheckCircle2, Download, FileSearch,
   Loader2, ShieldAlert, ShieldCheck, Star, Tag, ThumbsUp, Minus, GraduationCap, TrendingUp,
 } from "lucide-react";
+import QualityChecksGrid from "@/components/QualityChecksGrid";
 import type { PublicShareReport } from "@/lib/share/publicReport";
+import { studentReportFileName } from "@/lib/share/publicReport";
 import { downloadFromApi } from "@/utils/downloadFromApi";
 
 const REC = {
@@ -18,7 +20,7 @@ export default function SharedReportClient({ token }: { token: string }) {
   const [report, setReport] = useState<PublicShareReport | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [downloading, setDownloading] = useState(false);
+  const [downloading, setDownloading] = useState<"cv" | "report" | "">("");
   const [downloadError, setDownloadError] = useState("");
 
   useEffect(() => {
@@ -32,15 +34,22 @@ export default function SharedReportClient({ token }: { token: string }) {
       .finally(() => setLoading(false));
   }, [token]);
 
-  const handleDownload = async () => {
-    setDownloading(true);
+  const handleDownload = async (kind: "cv" | "report") => {
+    setDownloading(kind);
     setDownloadError("");
     try {
-      await downloadFromApi(`/api/share/${token}/cv`, report?.fileName || "CV.pdf");
+      if (kind === "cv") {
+        await downloadFromApi(`/api/share/${token}/cv`, report?.fileName || "CV.pdf");
+      } else {
+        await downloadFromApi(
+          `/api/share/${token}/report`,
+          studentReportFileName(report?.candidateName || "student"),
+        );
+      }
     } catch (err) {
       setDownloadError(err instanceof Error ? err.message : "Download failed.");
     } finally {
-      setDownloading(false);
+      setDownloading("");
     }
   };
 
@@ -48,7 +57,7 @@ export default function SharedReportClient({ token }: { token: string }) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-3 text-slate-500">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-        <p className="text-sm">Loading candidate report…</p>
+        <p className="text-sm">Loading student report…</p>
       </div>
     );
   }
@@ -78,20 +87,31 @@ export default function SharedReportClient({ token }: { token: string }) {
             </div>
             <div>
               <p className="text-sm font-bold text-slate-900 leading-none">Caliber</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">Shared career-readiness report</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Shared student report</p>
             </div>
           </div>
-          {report.canDownloadCv && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => void handleDownload()}
-              disabled={downloading}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-semibold rounded-xl"
+              onClick={() => void handleDownload("report")}
+              disabled={downloading === "report"}
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-sm font-semibold rounded-xl"
             >
-              {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Download CV
+              {downloading === "report" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              Download report
             </button>
-          )}
+            {report.canDownloadCv && (
+              <button
+                type="button"
+                onClick={() => void handleDownload("cv")}
+                disabled={downloading === "cv"}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-semibold rounded-xl"
+              >
+                {downloading === "cv" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Download CV
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -126,6 +146,8 @@ export default function SharedReportClient({ token }: { token: string }) {
             <p className="text-sm text-slate-700 leading-relaxed">{report.reason}</p>
           </section>
         )}
+
+        <QualityChecksGrid checks={report.qualityChecks} average={report.qualityAverage} />
 
         {report.scores && (
           <section className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
@@ -201,6 +223,19 @@ export default function SharedReportClient({ token }: { token: string }) {
             )}
           </div>
         </section>
+
+        {report.recommendations.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Recommendations</h2>
+            {report.recommendations.slice(0, 6).map((item, i) => (
+              <div key={`${item.title}-${i}`} className="bg-white border border-slate-200 rounded-2xl p-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">{item.priority}</p>
+                <p className="mt-1 font-semibold text-slate-800">{i + 1}. {item.title}</p>
+                <p className="mt-1 text-sm text-slate-500">{item.detail}</p>
+              </div>
+            ))}
+          </section>
+        )}
       </main>
     </div>
   );

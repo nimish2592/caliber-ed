@@ -23,7 +23,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Local data (PGlite) is stored in `.data/` — never in Caliber’s Postgres or Google Drive. CV files are stored in a **private Supabase bucket** (`cv-uploads`), grouped by campus:
+Scores and metadata live in **this project’s Supabase Postgres**. CV files go in a **private Supabase bucket** (`cv-uploads`), grouped by campus. Do not use Caliber hiring’s database or Drive. Local PGlite (`.data/pglite`) is only used when `DATABASE_URL` and `SUPABASE_DB_PASSWORD` are both unset.
 
 - Staff upload (signed in): `{institution-slug}/login/{email}/{assessment-id}/{filename}`
 - Student upload (public goal link): `{institution-slug}/goal/{goal-slug}/{assessment-id}/{filename}`
@@ -44,7 +44,7 @@ See `.env.example`. Production needs a **new** Postgres database, `AUTH_SECRET`,
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Dedicated project anon / publishable key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only service role (never expose to the browser) |
 | `SUPABASE_DB_PASSWORD` | Dedicated project database password |
-| `DATABASE_URL` | Production Postgres (this project's pooler URI). Omit locally to use PGlite. |
+| `DATABASE_URL` | This project's Postgres URI. Direct `db.[ref].supabase.co` (IPv6) or Session pooler (IPv4/Vercel). |
 | `STORAGE_DRIVER` | `supabase` (default) or `local` |
 | `STORAGE_BUCKET` | Private bucket name (`cv-uploads`) |
 | `AUTH_SECRET` | Institution session JWT |

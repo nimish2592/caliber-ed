@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { findUserByEmail, hasPassword, sessionFromUser, setSessionCookie } from "@/lib/auth/session";
+import { canSignIn, findUserByEmail, hasPassword, sessionFromUser, setSessionCookie } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -16,8 +16,19 @@ export async function POST(request: Request) {
   if (!user || !hasPassword(user.password_hash) || !bcrypt.compareSync(password, user.password_hash)) {
     return NextResponse.json({ error: "Those credentials are not recognised." }, { status: 401 });
   }
+  if (!canSignIn(user)) {
+    return NextResponse.json(
+      { error: "This account or organization is deactivated. Contact your Caliber admin." },
+      { status: 403 },
+    );
+  }
 
   const session = sessionFromUser(user);
   await setSessionCookie(session);
-  return NextResponse.json({ ok: true, platform: session.platform });
+  return NextResponse.json({
+    ok: true,
+    platform: session.platform,
+    demo: session.demo,
+    role: session.role,
+  });
 }
