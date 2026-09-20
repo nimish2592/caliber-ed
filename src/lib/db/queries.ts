@@ -600,6 +600,16 @@ export async function listGoals(institutionId: string): Promise<GoalRow[]> {
   return rows.map((row) => ({ ...mapGoal(row), cv_count: Number(row.cv_count ?? 0) }));
 }
 
+async function nextInstitutionGoalCode(institutionId: string): Promise<string> {
+  const row = await dbOne<{ n: string }>(
+    `SELECT COALESCE(MAX(NULLIF(substring(goal_code from 4), '')::int), 0)::text AS n
+     FROM goals
+     WHERE institution_id = $1 AND goal_code ~ '^GL-[0-9]+$'`,
+    [institutionId],
+  );
+  return `GL-${String(Number(row?.n ?? 0) + 1).padStart(3, "0")}`;
+}
+
 export async function createGoal(params: {
   id?: string;
   institutionId: string;
@@ -614,15 +624,12 @@ export async function createGoal(params: {
   } | null;
 }): Promise<GoalRow> {
   const id = params.id ?? newId("goal");
-  const countRow = await dbOne<{ n: string }>(
-    `SELECT COUNT(*)::text AS n FROM goals WHERE institution_id = $1`,
-    [params.institutionId],
-  );
-  const next = Number(countRow?.n ?? 0) + 1;
-  const goalCode = `GL-${String(next).padStart(3, "0")}`;
+  const goalCode = await nextInstitutionGoalCode(params.institutionId);
   const base = slugify(params.title) || "goal";
-  const suffix = id.slice(-4);
-  const publicSlug = `${base}-${suffix}`;
+  const suffix = id.replace(/[^a-z0-9]/gi, "").slice(-6).toUpperCase() || id.slice(-4).toUpperCase();
+  const publicSlug = `${base}-${suffix.toLowerCase()}`;
+  // public_code is globally unique; goal_code stays per-campus (GL-001, GL-002, …).
+  const publicCode = `GL-${suffix}`;
 
   await dbQuery(
     `INSERT INTO goals (id, institution_id, goal_code, title, context_text, focus_skills, status, public_slug, public_code, created_by,
@@ -636,7 +643,7 @@ export async function createGoal(params: {
       params.contextText,
       JSON.stringify(params.focusSkills),
       publicSlug,
-      goalCode,
+      publicCode,
       params.createdBy,
       params.contextFile?.fileName ?? null,
       params.contextFile?.mimeType ?? null,

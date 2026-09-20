@@ -1,13 +1,8 @@
 import { NextResponse } from "next/server";
-import { getGoogleAuthConfig, googleConfigured } from "@/lib/auth/google";
+import { isSupabaseAuthConfigured } from "@/lib/supabase/auth";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  const { clientId, redirectUri } = getGoogleAuthConfig();
-  return NextResponse.json({
-    configured: googleConfigured(),
-    redirectUri,
-    clientId,
-  });
+  return NextResponse.json({ configured: isSupabaseAuthConfigured() });
 }

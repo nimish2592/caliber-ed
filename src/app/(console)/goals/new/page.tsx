@@ -40,7 +40,7 @@ export default function CreateGoalPage() {
       const form = new FormData();
       form.set("file", f);
       const res = await fetch("/api/extract", { method: "POST", body: form });
-      const data = await res.json();
+      const data = (await res.json().catch(() => ({}))) as { error?: string; text?: string };
       if (!res.ok) throw new Error(data.error || "Could not extract text from that file.");
       if (data.text?.trim()) setContextText(String(data.text).trim());
     } catch (err) {
@@ -75,8 +75,8 @@ export default function CreateGoalPage() {
       form.set("focusSkills", JSON.stringify(focusSkills));
       if (file) form.set("file", file);
       const res = await fetch("/api/goals", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save goal.");
+      const data = (await res.json().catch(() => ({}))) as { error?: string; goal?: { id: string } };
+      if (!res.ok || !data.goal?.id) throw new Error(data.error || "Failed to save goal.");
       router.push(`/goals/${data.goal.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save goal.");

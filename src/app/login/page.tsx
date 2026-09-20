@@ -9,7 +9,7 @@ const LOGIN_ERRORS: Record<string, string> = {
   deactivated:
     "This account or organization is deactivated. Contact your Caliber admin.",
   google_not_configured:
-    "Google sign-in is not configured yet. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+    "Google sign-in is not enabled in Supabase Auth yet.",
   oauth_denied: "Google sign-in was cancelled.",
   oauth_failed: "Could not complete Google sign-in. Try again.",
 };

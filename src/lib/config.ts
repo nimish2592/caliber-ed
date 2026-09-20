@@ -38,8 +38,11 @@ const storageDriver: "local" | "supabase" =
       ? "supabase"
       : "local";
 
+const defaultAppUrl =
+  process.env.NODE_ENV === "production" ? "https://caliber.clipera.in" : "http://localhost:3000";
+
 export const appConfig = {
-  appUrl: (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, ""),
+  appUrl: (process.env.NEXT_PUBLIC_APP_URL ?? defaultAppUrl).replace(/\/$/, ""),
   authSecret: envOrFallback("AUTH_SECRET", "caliber-higher-ed-dev-secret"),
   supabaseUrl,
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || "",
@@ -66,9 +69,6 @@ export const appConfig = {
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),
-  googleClientId: envTrim("GOOGLE_CLIENT_ID"),
-  googleClientSecret: envTrim("GOOGLE_CLIENT_SECRET"),
-  googleRedirectUri: envTrim("GOOGLE_REDIRECT_URI").replace(/\/$/, ""),
 };
 
 export const PLAN_LIMITS = {

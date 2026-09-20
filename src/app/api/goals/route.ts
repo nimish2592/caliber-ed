@@ -56,49 +56,59 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
-  const { title, contextText, focusSkills, file } = await parseGoalInput(request);
+  try {
+    const { title, contextText, focusSkills, file } = await parseGoalInput(request);
 
-  if (title.length < 2) {
-    return NextResponse.json({ error: "Goal title is required." }, { status: 400 });
-  }
-  if (!contextText.trim() && !file) {
-    return NextResponse.json({ error: "Add higher-education context or upload a document." }, { status: 400 });
-  }
-  if (file) {
-    if (file.size > MAX_BYTES) {
-      return NextResponse.json({ error: "Please upload a file smaller than 8 MB." }, { status: 400 });
+    if (title.length < 2) {
+      return NextResponse.json({ error: "Goal title is required." }, { status: 400 });
     }
-    if (!ALLOWED.test(file.name)) {
-      return NextResponse.json({ error: "Please upload a PDF or DOCX file." }, { status: 400 });
+    if (!contextText.trim() && !file) {
+      return NextResponse.json({ error: "Add higher-education context or upload a document." }, { status: 400 });
     }
-  }
+    if (file) {
+      if (file.size > MAX_BYTES) {
+        return NextResponse.json({ error: "Please upload a file smaller than 8 MB." }, { status: 400 });
+      }
+      if (!ALLOWED.test(file.name)) {
+        return NextResponse.json({ error: "Please upload a PDF or DOCX file." }, { status: 400 });
+      }
+    }
 
-  const goalId = newId("goal");
-  let contextFile: { fileName: string; mimeType: string; storagePath: string } | null = null;
-  if (file) {
-    const institution = await getInstitution(session.institutionId);
-    if (!institution) return NextResponse.json({ error: "Institution not found." }, { status: 404 });
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const storagePath = await saveStoredFile({
-      objectPath: goalContextObjectPath(institution.slug, goalId, file.name),
-      mimeType: file.type || "application/octet-stream",
-      bytes,
+    const goalId = newId("goal");
+    let contextFile: { fileName: string; mimeType: string; storagePath: string } | null = null;
+    if (file) {
+      const institution = await getInstitution(session.institutionId);
+      if (!institution) return NextResponse.json({ error: "Institution not found." }, { status: 404 });
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const storagePath = await saveStoredFile({
+        objectPath: goalContextObjectPath(institution.slug, goalId, file.name),
+        mimeType: file.type || "application/octet-stream",
+        bytes,
+      });
+      contextFile = {
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        storagePath,
+      };
+    }
+
+    const goal = await createGoal({
+      id: goalId,
+      institutionId: session.institutionId,
+      title,
+      contextText: contextText.trim() || `Context extracted from ${file?.name ?? "uploaded document"}.`,
+      focusSkills,
+      createdBy: session.email,
+      contextFile,
     });
-    contextFile = {
-      fileName: file.name,
-      mimeType: file.type || "application/octet-stream",
-      storagePath,
-    };
+    return NextResponse.json({ goal });
+  } catch (err) {
+    console.error("[goals] create failed", err);
+    const message = err instanceof Error ? err.message : "Failed to save goal.";
+    const duplicate = /duplicate key|unique constraint/i.test(message);
+    return NextResponse.json(
+      { error: duplicate ? "Could not save this goal. Try again." : message },
+      { status: 500 },
+    );
   }
-
-  const goal = await createGoal({
-    id: goalId,
-    institutionId: session.institutionId,
-    title,
-    contextText: contextText.trim() || `Context extracted from ${file?.name ?? "uploaded document"}.`,
-    focusSkills,
-    createdBy: session.email,
-    contextFile,
-  });
-  return NextResponse.json({ goal });
 }
