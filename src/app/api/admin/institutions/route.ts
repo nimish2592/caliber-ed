@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const { user, tempPassword } = await addClientUser({
+  const { user } = await addClientUser({
     institutionId: institution.id,
     name: userName,
     email: userEmail,
@@ -78,6 +78,5 @@ export async function POST(request: Request) {
   return NextResponse.json({
     institution,
     user,
-    tempPassword,
   });
 }

@@ -1,20 +1,76 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { cookies } from "next/headers";
 import { appConfig } from "../config";
 
 const STATE_COOKIE = "he_oauth_state";
 
+let localEnvCache: Record<string, string> | null = null;
+
+function parseEnvFile(contents: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const rawLine of contents.split("\n")) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq < 1) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+function localEnv(): Record<string, string> {
+  if (localEnvCache) return localEnvCache;
+  try {
+    const contents = readFileSync(path.join(process.cwd(), ".env.local"), "utf8");
+    localEnvCache = parseEnvFile(contents);
+  } catch {
+    localEnvCache = {};
+  }
+  return localEnvCache;
+}
+
+function googleValue(name: string): string {
+  const fromProcess = (process.env[name] ?? "").trim();
+  if (fromProcess) return fromProcess;
+  return (localEnv()[name] ?? "").trim();
+}
+
+export function getGoogleAuthConfig(): {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+} {
+  const clientId = googleValue("GOOGLE_CLIENT_ID");
+  const clientSecret = googleValue("GOOGLE_CLIENT_SECRET");
+  const redirectUri =
+    googleValue("GOOGLE_REDIRECT_URI").replace(/\/$/, "") ||
+    `${appConfig.appUrl}/api/auth/google/callback`;
+  return { clientId, clientSecret, redirectUri };
+}
+
 export function googleConfigured(): boolean {
-  return Boolean(appConfig.googleClientId && appConfig.googleClientSecret);
+  const { clientId, clientSecret } = getGoogleAuthConfig();
+  return Boolean(clientId && clientSecret);
 }
 
 export function googleRedirectUri(): string {
-  return `${appConfig.appUrl}/api/auth/google/callback`;
+  return getGoogleAuthConfig().redirectUri;
 }
 
 export function googleAuthorizeUrl(state: string): string {
+  const { clientId, redirectUri } = getGoogleAuthConfig();
   const params = new URLSearchParams({
-    client_id: appConfig.googleClientId,
-    redirect_uri: googleRedirectUri(),
+    client_id: clientId,
+    redirect_uri: redirectUri,
     response_type: "code",
     scope: "openid email profile",
     state,
@@ -51,11 +107,12 @@ export type GoogleProfile = {
 };
 
 export async function exchangeGoogleCode(code: string): Promise<GoogleProfile> {
+  const { clientId, clientSecret, redirectUri } = getGoogleAuthConfig();
   const body = new URLSearchParams({
     code,
-    client_id: appConfig.googleClientId,
-    client_secret: appConfig.googleClientSecret,
-    redirect_uri: googleRedirectUri(),
+    client_id: clientId,
+    client_secret: clientSecret,
+    redirect_uri: redirectUri,
     grant_type: "authorization_code",
   });
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {

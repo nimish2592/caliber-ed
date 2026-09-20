@@ -90,8 +90,12 @@ function useSupabaseStorage(): boolean {
   return false;
 }
 
+function localAbsolutePath(objectPath: string): string {
+  return path.join(process.cwd(), ".data", "uploads", objectPath);
+}
+
 async function writeLocalFile(objectPath: string, bytes: Uint8Array): Promise<string> {
-  const absolute = path.join(process.cwd(), appConfig.storageDir, objectPath);
+  const absolute = localAbsolutePath(objectPath);
   await mkdir(path.dirname(absolute), { recursive: true });
   await writeFile(absolute, Buffer.from(bytes));
   return objectPath;
@@ -145,8 +149,7 @@ export async function readCvFile(storagePath: string): Promise<Buffer> {
       // Fall through to local disk when the original blob is only available there.
     }
   }
-  const absolute = path.join(process.cwd(), appConfig.storageDir, storagePath);
-  return readFile(absolute);
+  return readFile(localAbsolutePath(storagePath));
 }
 
 export async function deleteCvFile(storagePath: string): Promise<void> {
@@ -155,8 +158,7 @@ export async function deleteCvFile(storagePath: string): Promise<void> {
     await supabase.storage.from(appConfig.storageBucket).remove([storagePath]);
     return;
   }
-  const absolute = path.join(process.cwd(), appConfig.storageDir, storagePath);
-  await unlink(absolute).catch(() => undefined);
+  await unlink(localAbsolutePath(storagePath)).catch(() => undefined);
 }
 
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {

@@ -88,13 +88,13 @@ async function seedInstitutions(db: DbClient): Promise<void> {
   await ensureDemoCampus(db);
 }
 
-async function ensureDemoCampus(db: DbClient): Promise<void> {
+export async function ensureDemoCampus(db: DbClient): Promise<void> {
   const { periodStart, renewal } = billingDates();
   const inst = await db.query<{ id: string }>("SELECT id FROM institutions WHERE id = $1", [DEMO_INSTITUTION_ID]);
   if (inst.rows.length === 0) {
     await db.query(
-      `INSERT INTO institutions (id, name, slug, kind, student_instructions, retention_days, is_demo, assessment_engine, assessment_model)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `INSERT INTO institutions (id, name, slug, kind, student_instructions, retention_days, is_demo, assessment_engine, assessment_model, active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)`,
       [
         DEMO_INSTITUTION_ID,
         "Demo University",
@@ -110,7 +110,7 @@ async function ensureDemoCampus(db: DbClient): Promise<void> {
   } else {
     await db.query(
       `UPDATE institutions
-       SET is_demo = true, assessment_engine = 'heuristic', assessment_model = ''
+       SET is_demo = true, assessment_engine = 'heuristic', assessment_model = '', active = true
        WHERE id = $1`,
       [DEMO_INSTITUTION_ID],
     );
@@ -123,9 +123,15 @@ async function ensureDemoCampus(db: DbClient): Promise<void> {
   if (user.rows.length === 0) {
     const passwordHash = bcrypt.hashSync(appConfig.demoAdminPassword, 10);
     await db.query(
-      `INSERT INTO institution_users (id, institution_id, email, display_name, role, password_hash)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO institution_users (id, institution_id, email, display_name, role, password_hash, active)
+       VALUES ($1, $2, $3, $4, $5, $6, true)`,
       [id("usr"), DEMO_INSTITUTION_ID, appConfig.demoAdminEmail, "Campus Admin", "admin", passwordHash],
+    );
+  } else {
+    await db.query(
+      `UPDATE institution_users SET active = true
+       WHERE institution_id = $1 AND lower(email) = lower($2)`,
+      [DEMO_INSTITUTION_ID, appConfig.demoAdminEmail],
     );
   }
 

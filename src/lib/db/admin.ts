@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import { estimatedOpenAiCostUsd } from "../assessment/aiCost";
 import { PLAN_LIMITS, campusAssessmentDefaults, type PlanId } from "../config";
 import { newId } from "../storage";
@@ -54,10 +53,6 @@ function slugify(value: string): string {
 function asInt(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
-}
-
-export function generateTempPassword(): string {
-  return `Caliber-${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`;
 }
 
 export function isPlanId(value: string): value is PlanId {
@@ -341,29 +336,25 @@ export async function addClientUser(params: {
   name: string;
   email: string;
   role: "admin" | "staff";
-  password?: string;
-}): Promise<{ user: ProvisionedUserRow; tempPassword: string }> {
+}): Promise<{ user: ProvisionedUserRow }> {
   const email = params.email.trim().toLowerCase();
   const displayName = params.name.trim();
-  const tempPassword = params.password?.trim() || generateTempPassword();
   const id = newId("usr");
-  const hash = bcrypt.hashSync(tempPassword, 10);
 
   await dbQuery(
     `INSERT INTO institution_users (id, institution_id, email, display_name, role, password_hash, active)
-     VALUES ($1, $2, $3, $4, $5, $6, true)`,
-    [id, params.institutionId, email, displayName, params.role, hash],
+     VALUES ($1, $2, $3, $4, $5, '', true)`,
+    [id, params.institutionId, email, displayName, params.role],
   );
 
   return {
-    tempPassword,
     user: {
       id,
       institution_id: params.institutionId,
       email,
       display_name: displayName,
       role: params.role,
-      has_password: true,
+      has_password: false,
       active: true,
       created_at: new Date().toISOString(),
     },

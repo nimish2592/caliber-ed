@@ -1,10 +1,10 @@
-function requiredInProd(name: string, fallback: string): string {
-  const value = process.env[name]?.trim();
-  if (value) return value;
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(`Missing required environment variable ${name}`);
-  }
-  return fallback;
+function envTrim(name: string): string {
+  return (process.env[name] ?? "").trim();
+}
+
+/** Never throw at import time — Next evaluates this during `next build` on Vercel. */
+function envOrFallback(name: string, fallback: string): string {
+  return envTrim(name) || fallback;
 }
 
 const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, "");
@@ -21,6 +21,12 @@ function databaseUrl(): string {
   if (explicit) return explicit;
   const ref = supabaseProjectRef();
   if (!supabaseDbPassword || !ref) return "";
+  // Direct db.[ref].supabase.co is IPv6-only; Node on many networks can't resolve it.
+  // Prefer Session pooler when SUPABASE_DB_REGION is set (Dashboard → Database → Connection string).
+  const region = process.env.SUPABASE_DB_REGION?.trim();
+  if (region) {
+    return `postgresql://postgres.${ref}:${encodeURIComponent(supabaseDbPassword)}@aws-0-${region}.pooler.supabase.com:5432/postgres`;
+  }
   return `postgresql://postgres:${encodeURIComponent(supabaseDbPassword)}@db.${ref}.supabase.co:5432/postgres`;
 }
 
@@ -34,14 +40,14 @@ const storageDriver: "local" | "supabase" =
 
 export const appConfig = {
   appUrl: (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, ""),
-  authSecret: requiredInProd("AUTH_SECRET", "caliber-higher-ed-dev-secret"),
+  authSecret: envOrFallback("AUTH_SECRET", "caliber-higher-ed-dev-secret"),
   supabaseUrl,
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || "",
   supabaseServiceRoleKey,
   supabaseDbPassword,
   databaseUrl: databaseUrl(),
   storageDriver,
-  storageDir: process.env.STORAGE_DIR ?? ".data/uploads",
+  storageDir: ".data/uploads",
   storageUrl: process.env.STORAGE_URL?.trim() || "",
   storageBucket: process.env.STORAGE_BUCKET?.trim() || "cv-uploads",
   assessmentEngine: (process.env.ASSESSMENT_ENGINE ?? "heuristic") as "heuristic" | "openai",
@@ -60,8 +66,9 @@ export const appConfig = {
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),
-  googleClientId: process.env.GOOGLE_CLIENT_ID?.trim() || "",
-  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET?.trim() || "",
+  googleClientId: envTrim("GOOGLE_CLIENT_ID"),
+  googleClientSecret: envTrim("GOOGLE_CLIENT_SECRET"),
+  googleRedirectUri: envTrim("GOOGLE_REDIRECT_URI").replace(/\/$/, ""),
 };
 
 export const PLAN_LIMITS = {

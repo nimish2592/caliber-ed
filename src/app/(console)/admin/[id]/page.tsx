@@ -30,7 +30,7 @@ export default function AdminClientDetailPage() {
   const [allocationSaved, setAllocationSaved] = useState(false);
   const [annualLimit, setAnnualLimit] = useState("");
   const [plan, setPlan] = useState("institution");
-  const [issued, setIssued] = useState<{ name: string; email: string; tempPassword: string } | null>(null);
+  const [issued, setIssued] = useState<{ name: string; email: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
   async function load() {
@@ -109,7 +109,6 @@ export default function AdminClientDetailPage() {
     setIssued({
       name: data.user.display_name,
       email: data.user.email,
-      tempPassword: data.tempPassword,
     });
     form.reset();
     setBusy(false);
@@ -165,7 +164,7 @@ export default function AdminClientDetailPage() {
 
   async function copyLogin() {
     if (!issued) return;
-    await navigator.clipboard.writeText(`${issued.email}\n${issued.tempPassword}`);
+    await navigator.clipboard.writeText(issued.email);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -298,13 +297,9 @@ export default function AdminClientDetailPage() {
             <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-emerald-900">
-                  {issued.name} can log in now
+                  {issued.name} can sign in with Google
                 </p>
-                <p className="text-sm text-emerald-800 mt-1">
-                  Gmail or email: {issued.email}
-                </p>
-                <p className="font-mono text-sm text-emerald-950 mt-1">{issued.tempPassword}</p>
-                <p className="text-xs text-emerald-700 mt-2">Copy this password now — it is only shown once.</p>
+                <p className="text-sm text-emerald-800 mt-1">{issued.email}</p>
               </div>
               <button
                 type="button"
@@ -388,7 +383,7 @@ export default function AdminClientDetailPage() {
               <h3 className="text-sm font-semibold text-slate-900">Add a user</h3>
             </div>
             <p className="text-sm text-slate-500">
-              Enter their name and the email they will use to sign in (Gmail or campus email).
+              Enter their name and the Google email they will use to sign in.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="block text-sm font-medium text-slate-700">
@@ -406,7 +401,7 @@ export default function AdminClientDetailPage() {
                   name="email"
                   type="email"
                   required
-                  placeholder="alex@university.edu"
+                  placeholder="alex@gmail.com"
                   className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </label>

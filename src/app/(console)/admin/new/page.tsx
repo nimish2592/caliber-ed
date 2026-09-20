@@ -23,7 +23,6 @@ export default function NewClientPage() {
     id: string;
     name: string;
     email: string;
-    tempPassword: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -56,14 +55,13 @@ export default function NewClientPage() {
       id: data.institution.id,
       name: data.user.display_name,
       email: data.user.email,
-      tempPassword: data.tempPassword,
     });
     setBusy(false);
   }
 
-  async function copyPassword() {
+  async function copyEmail() {
     if (!created) return;
-    await navigator.clipboard.writeText(`${created.email}\n${created.tempPassword}`);
+    await navigator.clipboard.writeText(created.email);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -81,22 +79,20 @@ export default function NewClientPage() {
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Client provisioned</h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  {created.name} can sign in with Gmail ({created.email}) or this one-time password.
-                  Copy it now — it will not be shown again.
+                  {created.name} can sign in with Google using {created.email}.
                 </p>
               </div>
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-sm space-y-1">
-                <p><span className="text-slate-400">Email</span> · {created.email}</p>
-                <p className="font-mono text-slate-800">{created.tempPassword}</p>
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-sm">
+                <p><span className="text-slate-400">Google email</span> · {created.email}</p>
               </div>
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => void copyPassword()}
+                  onClick={() => void copyEmail()}
                   className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {copied ? "Copied" : "Copy login"}
+                  {copied ? "Copied" : "Copy email"}
                 </button>
                 <button
                   type="button"
@@ -119,7 +115,7 @@ export default function NewClientPage() {
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Provision a client</h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  Create the campus workspace, then add the first person who should be able to log in.
+                  Create the campus workspace, then add the first person who should sign in with Google.
                 </p>
               </div>
 
@@ -191,7 +187,7 @@ export default function NewClientPage() {
                     name="userEmail"
                     type="email"
                     required
-                    placeholder="priya@university.edu"
+                    placeholder="priya@gmail.com"
                     className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </label>

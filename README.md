@@ -28,11 +28,7 @@ Scores and metadata live in **this project’s Supabase Postgres**. CV files go 
 - Staff upload (signed in): `{institution-slug}/login/{email}/{assessment-id}/{filename}`
 - Student upload (public goal link): `{institution-slug}/goal/{goal-slug}/{assessment-id}/{filename}`
 
-Demo campus login:
-
-- Email: `campus@demo.edu`
-- Password: `campus-demo`
-- Seeded event: [/e/career-fair-2026](http://localhost:3000/e/career-fair-2026)
+Sign in at [http://localhost:3000/login](http://localhost:3000/login) with Google. The account must already be provisioned (platform admins: `nimish.khandelwal25@gmail.com`). Student goal links stay public and do not need a login.
 
 ## Environment
 

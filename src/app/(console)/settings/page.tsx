@@ -42,7 +42,7 @@ export default async function SettingsPage() {
             studentInstructions={institution.student_instructions}
             retentionDays={institution.retention_days}
             showStudentIdentities={institution.show_student_identities}
-            canEdit={session.role === "admin"}
+            canEdit={session.role === "admin" && session.institutionId === session.homeInstitutionId}
           />
         </div>
       </div>

@@ -11,7 +11,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       <AppSidebar
         userEmail={session.email}
         isPlatform={session.platform}
-        isDemo={session.demo}
+        isDemo={session.workspaceMode === "demo"}
         canAccessAdmin={canAccessAdmin(session)}
       />
       <div className="flex-1 flex flex-col min-w-0 min-h-0">

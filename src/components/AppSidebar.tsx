@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FileSearch, LogOut, Settings, Shield, Target, Users } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 export type SidebarTab = "admin" | "goals" | "candidates" | "settings";
 
@@ -59,11 +59,40 @@ export default function AppSidebar({
   const router = useRouter();
   const active = activeTab(pathname);
   const items: NavItem[] = canAccessAdmin ? [...CAMPUS_ITEMS, ADMIN_ITEM] : CAMPUS_ITEMS;
+  const [switching, setSwitching] = useState(false);
 
   async function onLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
     router.refresh();
+  }
+
+  async function onWorkspaceMode(mode: "demo" | "live") {
+    if (switching) return;
+    if (mode === "demo" && isDemo) return;
+    if (mode === "live" && !isDemo) return;
+    setSwitching(true);
+    try {
+      const res = await fetch("/api/auth/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Could not switch data.");
+      }
+      if (pathname.startsWith("/admin")) {
+        router.refresh();
+      } else {
+        router.push("/");
+        router.refresh();
+      }
+    } catch {
+      setSwitching(false);
+      return;
+    }
+    setSwitching(false);
   }
 
   return (
@@ -82,13 +111,6 @@ export default function AppSidebar({
         </div>
       </div>
 
-      {isDemo ? (
-        <div className="mx-3 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-          <p className="text-[11px] font-semibold text-amber-800">Demo University</p>
-          <p className="text-[11px] text-amber-700 mt-0.5">Sample goals and candidates. Sign in with a campus account for live data.</p>
-        </div>
-      ) : null}
-
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
           Modules
@@ -105,8 +127,8 @@ export default function AppSidebar({
         ))}
       </nav>
 
-      <div className="px-3 py-4 border-t border-slate-100">
-        <div className="flex items-center gap-2 px-2 py-2">
+      <div className="px-3 py-3 border-t border-slate-100 space-y-2">
+        <div className="flex items-center gap-2 px-2 py-1">
           <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
             <span className="text-blue-700 font-bold text-xs">
               {userEmail[0]?.toUpperCase()}
@@ -124,6 +146,37 @@ export default function AppSidebar({
           >
             <LogOut className="w-4 h-4" />
           </button>
+        </div>
+        <div className="px-2 pt-1">
+          <p className="px-0.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            Data
+          </p>
+          <div className="grid grid-cols-2 gap-0.5 p-0.5 rounded-lg bg-slate-100">
+            <button
+              type="button"
+              disabled={switching}
+              onClick={() => void onWorkspaceMode("demo")}
+              className={`rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                isDemo
+                  ? "bg-white text-amber-800 shadow-sm"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Demo
+            </button>
+            <button
+              type="button"
+              disabled={switching}
+              onClick={() => void onWorkspaceMode("live")}
+              className={`rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                !isDemo
+                  ? "bg-white text-emerald-800 shadow-sm"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Live
+            </button>
+          </div>
         </div>
       </div>
     </aside>
