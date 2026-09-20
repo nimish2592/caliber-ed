@@ -44,6 +44,7 @@ export type PublicShareReport = {
   dimensions: StudentReportDimension[];
   recommendations: StudentReportRecommendation[];
   generatedAt: string;
+  institutionName: string;
 };
 
 function hasQualityScores(checks?: QualityChecks | null): checks is QualityChecks {
@@ -76,6 +77,7 @@ export function publicShareReport(params: {
   goalCode: string;
   score: number | null;
   canDownloadCv: boolean;
+  institutionName?: string;
   dimensions?: StudentReportDimension[];
   recommendations?: StudentReportRecommendation[];
 }): PublicShareReport {
@@ -118,6 +120,7 @@ export function publicShareReport(params: {
           detail: r.detail,
         })),
     generatedAt: new Date().toISOString(),
+    institutionName: params.institutionName?.trim() || "",
   };
 }
 

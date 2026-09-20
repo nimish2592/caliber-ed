@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { DIMENSION_LABELS } from "@/lib/assessment/profiles";
-import { getAssessmentDetails, getAssessmentForAccess, getAssessmentForInstitution, getGoalById } from "@/lib/db/queries";
+import { getAssessmentDetails, getAssessmentForAccess, getAssessmentForInstitution, getGoalById, getInstitution } from "@/lib/db/queries";
 import { fileDownloadResponse } from "@/lib/files/http";
 import { publicShareReport, studentReportFileName } from "@/lib/share/publicReport";
 import { buildStudentReportPdf } from "@/lib/share/studentReportPdf";
@@ -28,6 +28,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const goal = assessment.goal_id
     ? await getGoalById(assessment.goal_id, assessment.institution_id)
     : null;
+  const institution = await getInstitution(assessment.institution_id);
   const report = publicShareReport({
     ranking: assessment.ranking,
     candidateName: assessment.candidate_name,
@@ -36,6 +37,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     goalCode: goal?.goal_code || "",
     score: assessment.overall_score,
     canDownloadCv: false,
+    institutionName: institution?.name || "",
     dimensions: details.dimensions.map((d) => ({
       key: d.dimension,
       label: DIMENSION_LABELS[d.dimension as keyof typeof DIMENSION_LABELS] ?? d.dimension,
@@ -47,7 +49,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   });
 
   return fileDownloadResponse({
-    bytes: buildStudentReportPdf(report),
+    bytes: await buildStudentReportPdf(report),
     fileName: studentReportFileName(report.candidateName),
     mimeType: "application/pdf",
   });

@@ -2,12 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle, Archive, ArchiveRestore, Building2, ChevronLeft, ChevronRight,
-  Code2, Download, ExternalLink, GraduationCap, Link2, Loader2, Mail, Phone,
-  RefreshCw, Search, Share2, Target, User, Users, X,
+  AlertCircle, Archive, ArchiveRestore, ArrowDown, ArrowUp, ArrowUpDown,
+  Building2, ChevronLeft, ChevronRight, Code2, Download, ExternalLink,
+  GraduationCap, Link2, Loader2, Mail, Phone, RefreshCw, Search, Share2,
+  Target, User, Users, X,
 } from "lucide-react";
 import type { CandidateDirectoryStatus, CandidateRow } from "@/lib/candidates/types";
-import { CANDIDATE_DIRECTORY_STATUSES, directoryStatusBadgeClass } from "@/lib/candidates/types";
+import {
+  CANDIDATE_DIRECTORY_STATUSES,
+  CANDIDATE_READINESS,
+  directoryStatusBadgeClass,
+  readinessBadgeClass,
+  readinessLabel,
+} from "@/lib/candidates/types";
 import type { RankedCv } from "@/lib/ranking/types";
 import ShareCvModal from "@/components/ShareCvModal";
 import TextViewerModal from "@/components/TextViewerModal";
@@ -15,6 +22,9 @@ import GradeBadge from "@/components/GradeBadge";
 import { downloadFromApi } from "@/utils/downloadFromApi";
 
 const PAGE_SIZE = 20;
+
+type SortKey = "name" | "score" | "status" | "readiness" | "ranked";
+type SortDir = "asc" | "desc";
 
 function Avatar({ name }: { name: string }) {
   const initials = name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
@@ -42,6 +52,11 @@ function formatDate(iso: string | null) {
 function ScoreBadge({ score }: { score: number | null }) {
   if (score == null) return <span className="text-xs text-slate-400 italic">—</span>;
   return <GradeBadge grade={null} score={score} size="sm" />;
+}
+
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  if (!active) return <ArrowUpDown className="w-3 h-3 text-slate-300" />;
+  return dir === "asc" ? <ArrowUp className="w-3 h-3 text-blue-600" /> : <ArrowDown className="w-3 h-3 text-blue-600" />;
 }
 
 function CandidateDetailPanel({
@@ -80,7 +95,9 @@ function CandidateDetailPanel({
               <div>
                 <p className="text-[10px] font-mono font-bold text-blue-600 mb-0.5">{candidate.candidate_code}</p>
                 <h2 className="font-bold text-slate-900 text-base">{candidate.display_name || "Unknown"}</h2>
-                <p className="text-xs text-emerald-700 font-medium mt-0.5">{candidate.directory_status}</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Goal readiness: {readinessLabel(candidate.last_recommendation)}
+                </p>
               </div>
             </div>
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700">
@@ -195,7 +212,7 @@ function CandidateDetailPanel({
           )}
 
           <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Status
+            Candidate status
             <select
               value={candidate.directory_status}
               onChange={(e) => onStatusChange(e.target.value as CandidateDirectoryStatus)}
@@ -262,12 +279,17 @@ export default function CandidatesPage() {
   const [archiveTab, setArchiveTab] = useState<"active" | "archived">("active");
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | CandidateDirectoryStatus>("all");
+  const [readinessFilter, setReadinessFilter] = useState<"all" | (typeof CANDIDATE_READINESS)[number]>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("ranked");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<CandidateRow | null>(null);
   const [rankings, setRankings] = useState<RankedCv[]>([]);
   const [archiving, setArchiving] = useState(false);
+  const [savingStatusId, setSavingStatusId] = useState<string | null>(null);
   const [viewingCv, setViewingCv] = useState<RankedCv | null>(null);
   const [sharingCv, setSharingCv] = useState<RankedCv | null>(null);
   const [downloadingCv, setDownloadingCv] = useState(false);
@@ -296,11 +318,58 @@ export default function CandidatesPage() {
     void load(archiveTab, appliedSearch);
   }, [archiveTab, appliedSearch, load]);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const filtered = useMemo(() => {
+    let next = rows;
+    if (statusFilter !== "all") {
+      next = next.filter((row) => row.directory_status === statusFilter);
+    }
+    if (readinessFilter !== "all") {
+      next = next.filter((row) => row.last_recommendation === readinessFilter);
+    }
+    return next;
+  }, [rows, statusFilter, readinessFilter]);
+
+  const sorted = useMemo(() => {
+    const copy = [...filtered];
+    const dir = sortDir === "asc" ? 1 : -1;
+    copy.sort((a, b) => {
+      if (sortKey === "name") {
+        return dir * (a.display_name || "").localeCompare(b.display_name || "", undefined, { sensitivity: "base" });
+      }
+      if (sortKey === "score") {
+        return dir * ((a.last_score ?? -1) - (b.last_score ?? -1));
+      }
+      if (sortKey === "status") {
+        return dir * a.directory_status.localeCompare(b.directory_status);
+      }
+      if (sortKey === "readiness") {
+        return dir * readinessLabel(a.last_recommendation).localeCompare(readinessLabel(b.last_recommendation));
+      }
+      const aTime = a.last_ranked_at ? new Date(a.last_ranked_at).getTime() : 0;
+      const bTime = b.last_ranked_at ? new Date(b.last_ranked_at).getTime() : 0;
+      return dir * (aTime - bTime);
+    });
+    return copy;
+  }, [filtered, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
   const paged = useMemo(
-    () => rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [rows, page],
+    () => sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [sorted, safePage],
   );
+  const rangeStart = sorted.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safePage * PAGE_SIZE, sorted.length);
+
+  function toggleSort(key: SortKey) {
+    setPage(1);
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDir(key === "name" || key === "status" || key === "readiness" ? "asc" : "desc");
+  }
 
   const openCandidate = async (row: CandidateRow) => {
     setSelected(row);
@@ -313,8 +382,13 @@ export default function CandidatesPage() {
     }
   };
 
-  const patchCandidate = async (id: string, body: Record<string, unknown>) => {
+  const patchCandidate = async (
+    id: string,
+    body: Record<string, unknown>,
+    options?: { keepOpen?: boolean },
+  ) => {
     setArchiving(true);
+    if (body.directoryStatus) setSavingStatusId(id);
     try {
       const res = await fetch(`/api/candidates/${id}`, {
         method: "PATCH",
@@ -325,12 +399,22 @@ export default function CandidatesPage() {
         const data = await res.json();
         throw new Error(data.error || "Update failed.");
       }
-      setSelected(null);
-      await load(archiveTab, appliedSearch);
+      if (body.directoryStatus) {
+        const nextStatus = body.directoryStatus as CandidateDirectoryStatus;
+        setRows((prev) => prev.map((row) => (row.id === id ? { ...row, directory_status: nextStatus } : row)));
+        setSelected((prev) => (prev?.id === id ? { ...prev, directory_status: nextStatus } : prev));
+      }
+      if (!options?.keepOpen) {
+        setSelected(null);
+        await load(archiveTab, appliedSearch);
+      } else if (body.archived != null) {
+        await load(archiveTab, appliedSearch);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update failed.");
     } finally {
       setArchiving(false);
+      setSavingStatusId(null);
     }
   };
 
@@ -387,7 +471,7 @@ export default function CandidatesPage() {
           </div>
         )}
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-5">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-5 space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -398,19 +482,68 @@ export default function CandidatesPage() {
               className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+          <div className="flex flex-wrap gap-2">
+            <label className="flex items-center gap-2 text-xs text-slate-500">
+              Status
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as "all" | CandidateDirectoryStatus);
+                  setPage(1);
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All statuses</option>
+                {CANDIDATE_DIRECTORY_STATUSES.map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-xs text-slate-500">
+              Readiness
+              <select
+                value={readinessFilter}
+                onChange={(e) => {
+                  setReadinessFilter(e.target.value as "all" | (typeof CANDIDATE_READINESS)[number]);
+                  setPage(1);
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All readiness</option>
+                {CANDIDATE_READINESS.map((value) => (
+                  <option key={value} value={value}>{readinessLabel(value)}</option>
+                ))}
+              </select>
+            </label>
+            {(statusFilter !== "all" || readinessFilter !== "all" || appliedSearch) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setReadinessFilter("all");
+                  setSearch("");
+                  setAppliedSearch("");
+                  setPage(1);
+                }}
+                className="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2 py-1.5"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
           </div>
-        ) : rows.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="w-16 h-16 rounded-2xl bg-blue-50 border-2 border-dashed border-blue-200 flex items-center justify-center mb-5">
               {archiveTab === "archived" ? <Archive className="w-7 h-7 text-slate-400" /> : <Users className="w-7 h-7 text-blue-400" />}
             </div>
             <h3 className="text-lg font-bold text-slate-800 mb-1">
-              {archiveTab === "archived" ? "No archived candidates" : appliedSearch ? "No matching candidates" : "No candidates yet"}
+              {archiveTab === "archived" ? "No archived candidates" : appliedSearch || statusFilter !== "all" || readinessFilter !== "all" ? "No matching candidates" : "No candidates yet"}
             </h3>
             <p className="text-slate-500 text-sm max-w-xs">
               {archiveTab === "archived"
@@ -424,13 +557,34 @@ export default function CandidatesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Candidate</th>
+                    <th className="px-5 py-3.5 text-left">
+                      <button type="button" onClick={() => toggleSort("name")} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800">
+                        Candidate <SortIcon active={sortKey === "name"} dir={sortDir} />
+                      </button>
+                    </th>
                     <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Education</th>
                     <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Skills</th>
                     <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Goals</th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Score</th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Status</th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Last ranked</th>
+                    <th className="px-5 py-3.5 text-left">
+                      <button type="button" onClick={() => toggleSort("score")} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800">
+                        Score <SortIcon active={sortKey === "score"} dir={sortDir} />
+                      </button>
+                    </th>
+                    <th className="px-5 py-3.5 text-left hidden sm:table-cell">
+                      <button type="button" onClick={() => toggleSort("readiness")} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800">
+                        Readiness <SortIcon active={sortKey === "readiness"} dir={sortDir} />
+                      </button>
+                    </th>
+                    <th className="px-5 py-3.5 text-left hidden sm:table-cell">
+                      <button type="button" onClick={() => toggleSort("status")} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800">
+                        Status <SortIcon active={sortKey === "status"} dir={sortDir} />
+                      </button>
+                    </th>
+                    <th className="px-5 py-3.5 text-left hidden md:table-cell">
+                      <button type="button" onClick={() => toggleSort("ranked")} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800">
+                        Last ranked <SortIcon active={sortKey === "ranked"} dir={sortDir} />
+                      </button>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -476,11 +630,23 @@ export default function CandidatesPage() {
                         <ScoreBadge score={c.last_score} />
                       </td>
                       <td className="px-5 py-4 hidden sm:table-cell">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold border ${directoryStatusBadgeClass(c.directory_status)}`}>
-                          {c.directory_status}
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold border ${readinessBadgeClass(c.last_recommendation)}`}>
+                          {readinessLabel(c.last_recommendation)}
                         </span>
                       </td>
-                      <td className="px-5 py-4 hidden sm:table-cell text-xs text-slate-500">
+                      <td className="px-5 py-4 hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={c.directory_status}
+                          disabled={savingStatusId === c.id}
+                          onChange={(e) => void patchCandidate(c.id, { directoryStatus: e.target.value }, { keepOpen: true })}
+                          className={`max-w-[140px] text-xs font-semibold border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 ${directoryStatusBadgeClass(c.directory_status)}`}
+                        >
+                          {CANDIDATE_DIRECTORY_STATUSES.map((status) => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-5 py-4 hidden md:table-cell text-xs text-slate-500">
                         {formatDate(c.last_ranked_at)}
                       </td>
                     </tr>
@@ -488,15 +654,29 @@ export default function CandidatesPage() {
                 </tbody>
               </table>
             </div>
-            <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <p className="text-xs text-slate-400">
-                {rows.length} candidate{rows.length !== 1 ? "s" : ""}
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">
+                Showing {rangeStart}–{rangeEnd} of {sorted.length}
+                {sorted.length !== rows.length ? ` (filtered from ${rows.length})` : ""}
               </p>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 text-slate-500 hover:bg-slate-200 rounded-lg disabled:opacity-30">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="p-1.5 text-slate-500 hover:bg-slate-200 rounded-lg disabled:opacity-30"
+                >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-1.5 text-slate-500 hover:bg-slate-200 rounded-lg disabled:opacity-30">
+                <span className="text-xs font-medium text-slate-600 tabular-nums">
+                  Page {safePage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="p-1.5 text-slate-500 hover:bg-slate-200 rounded-lg disabled:opacity-30"
+                >
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -513,7 +693,7 @@ export default function CandidatesPage() {
           downloading={downloadingCv}
           onClose={() => setSelected(null)}
           onArchiveToggle={() => void patchCandidate(selected.id, { archived: !selected.archived })}
-          onStatusChange={(status) => void patchCandidate(selected.id, { directoryStatus: status })}
+          onStatusChange={(status) => void patchCandidate(selected.id, { directoryStatus: status }, { keepOpen: true })}
           onViewCv={setViewingCv}
           onShareCv={setSharingCv}
           onDownloadCv={async () => {

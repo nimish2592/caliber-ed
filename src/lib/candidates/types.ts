@@ -1,6 +1,15 @@
-export const CANDIDATE_DIRECTORY_STATUSES = ["On campus", "Placed"] as const;
+export const CANDIDATE_DIRECTORY_STATUSES = [
+  "On campus",
+  "Developing",
+  "Ready",
+  "Needs work",
+  "Placed",
+] as const;
 export type CandidateDirectoryStatus = (typeof CANDIDATE_DIRECTORY_STATUSES)[number];
 export const DEFAULT_DIRECTORY_STATUS: CandidateDirectoryStatus = "On campus";
+
+export const CANDIDATE_READINESS = ["ready", "developing", "needs_work"] as const;
+export type CandidateReadiness = (typeof CANDIDATE_READINESS)[number];
 
 export type CandidateRow = {
   id: string;
@@ -32,7 +41,31 @@ export type CandidateRow = {
   goal_count?: number;
 };
 
+export function normalizeDirectoryStatus(value: unknown): CandidateDirectoryStatus {
+  if (typeof value === "string" && (CANDIDATE_DIRECTORY_STATUSES as readonly string[]).includes(value)) {
+    return value as CandidateDirectoryStatus;
+  }
+  return DEFAULT_DIRECTORY_STATUS;
+}
+
 export function directoryStatusBadgeClass(status: CandidateDirectoryStatus): string {
   if (status === "Placed") return "bg-slate-100 text-slate-600 border-slate-200";
-  return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (status === "Ready") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (status === "Developing") return "bg-amber-50 text-amber-700 border-amber-200";
+  if (status === "Needs work") return "bg-rose-50 text-rose-700 border-rose-200";
+  return "bg-blue-50 text-blue-700 border-blue-200";
+}
+
+export function readinessLabel(value: string | null | undefined): string {
+  if (value === "ready") return "Ready";
+  if (value === "developing") return "Developing";
+  if (value === "needs_work") return "Needs work";
+  return "—";
+}
+
+export function readinessBadgeClass(value: string | null | undefined): string {
+  if (value === "ready") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (value === "developing") return "bg-amber-50 text-amber-700 border-amber-200";
+  if (value === "needs_work") return "bg-rose-50 text-rose-700 border-rose-200";
+  return "bg-slate-50 text-slate-500 border-slate-200";
 }

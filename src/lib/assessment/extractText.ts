@@ -11,29 +11,14 @@ function isLegacyDoc(bytes: Uint8Array): boolean {
 }
 
 async function extractPdf(bytes: Uint8Array): Promise<string> {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  // unpdf polyfills DOMMatrix for Node / serverless — raw pdfjs-dist crashes on Vercel and some mobile webviews.
+  const { extractText } = await import("unpdf");
   const data = new Uint8Array(bytes.byteLength);
   data.set(bytes);
-  const pdf = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
-  const parts: string[] = [];
-  for (let i = 1; i <= pdf.numPages; i += 1) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    let lastY: number | null = null;
-    const pageParts: string[] = [];
-    for (const item of content.items) {
-      if (!("str" in item) || !("transform" in item)) continue;
-      const y = Number((item.transform as number[])[5] ?? 0);
-      if (lastY != null && Math.abs(y - lastY) > 2) pageParts.push("\n");
-      else if (pageParts.length && !pageParts[pageParts.length - 1].endsWith(" ") && item.str) {
-        pageParts.push(" ");
-      }
-      pageParts.push(item.str);
-      lastY = y;
-    }
-    parts.push(pageParts.join(""));
-  }
-  return sanitize(parts.join("\n"));
+  const result = await extractText(data, { mergePages: true });
+  const raw = result.text;
+  const text = Array.isArray(raw) ? raw.join("\n") : String(raw ?? "");
+  return sanitize(text);
 }
 
 async function extractDocx(bytes: Uint8Array, fileName: string): Promise<string> {

@@ -87,7 +87,9 @@ export default function SharedReportClient({ token }: { token: string }) {
             </div>
             <div>
               <p className="text-sm font-bold text-slate-900 leading-none">Caliber</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">Shared student report</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {report.institutionName ? `${report.institutionName} · Shared student report` : "Shared student report"}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">

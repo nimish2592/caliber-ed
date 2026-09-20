@@ -24,6 +24,11 @@ export async function POST(request: Request) {
       goalId,
       institutionId: goalId ? session?.institutionId ?? null : null,
       uploadedByEmail: session?.email ?? null,
+      contact: {
+        displayName: String(form.get("displayName") ?? "").trim() || null,
+        email: String(form.get("email") ?? "").trim() || null,
+        phone: String(form.get("phone") ?? "").trim() || null,
+      },
     });
     return NextResponse.json(result);
   } catch (err) {

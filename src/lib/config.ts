@@ -69,6 +69,9 @@ export const appConfig = {
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),
+  /** Resend — staff-triggered student report emails only (never auto-send). */
+  resendApiKey: envTrim("RESEND_API_KEY"),
+  resendFromEmail: envTrim("RESEND_FROM_EMAIL"),
 };
 
 export const PLAN_LIMITS = {

@@ -4,7 +4,7 @@ import type { EngineResult, StructuredCv } from "../assessment/types";
 import type { GoalStatus, RankedCv, RankingPayload } from "../ranking/types";
 import { letterGradeFromScore } from "../grading/letterGrade";
 import type { CandidateDirectoryStatus, CandidateRow } from "../candidates/types";
-import { DEFAULT_DIRECTORY_STATUS } from "../candidates/types";
+import { DEFAULT_DIRECTORY_STATUS, normalizeDirectoryStatus } from "../candidates/types";
 import { mergeProfile, normalizeCandidateEmail, profileFromStructured } from "../candidates/profile";
 
 export type InstitutionRow = {
@@ -756,6 +756,7 @@ export type PublicCvShare = {
   assessment: AssessmentRow;
   goalTitle: string;
   goalCode: string;
+  institutionName: string;
   document: StoredFileRow | null;
 };
 
@@ -778,6 +779,7 @@ export async function getPublicCvShare(token: string): Promise<PublicCvShare | n
       access_token: string;
       goal_title: string | null;
       goal_code: string | null;
+      institution_name: string | null;
       original_name: string | null;
       mime_type: string | null;
       storage_path: string | null;
@@ -789,10 +791,12 @@ export async function getPublicCvShare(token: string): Promise<PublicCvShare | n
             a.created_at::text AS created_at_assessment, a.completed_at::text, a.engine, a.error,
             a.student_id, a.event_id, a.goal_id, a.access_token,
             g.title AS goal_title, g.goal_code,
+            i.name AS institution_name,
             d.id AS document_row_id, d.original_name, d.mime_type, d.storage_path
      FROM cv_shares s
      JOIN assessments a ON a.id = s.assessment_id
      LEFT JOIN goals g ON g.id = a.goal_id
+     LEFT JOIN institutions i ON i.id = s.institution_id
      LEFT JOIN cv_documents d ON d.id = a.document_id
      WHERE s.share_token = $1 AND s.is_active = true`,
     [token],
@@ -831,6 +835,7 @@ export async function getPublicCvShare(token: string): Promise<PublicCvShare | n
     },
     goalTitle: row.goal_title || "Goal",
     goalCode: row.goal_code || "",
+    institutionName: row.institution_name || "",
     document: row.document_row_id
       ? {
           id: row.document_row_id,
@@ -937,7 +942,7 @@ function mapCandidate(row: Record<string, unknown>): CandidateRow {
     last_score: row.last_score == null ? null : Number(row.last_score),
     last_recommendation: (row.last_recommendation as string | null) ?? null,
     last_ranked_at: (row.last_ranked_at as string | null) ?? null,
-    directory_status: (row.directory_status as CandidateDirectoryStatus) || DEFAULT_DIRECTORY_STATUS,
+    directory_status: normalizeDirectoryStatus(row.directory_status),
     archived: Boolean(row.archived),
     student_id: (row.student_id as string | null) ?? null,
     created_at: String(row.created_at ?? ""),

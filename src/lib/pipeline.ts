@@ -1,4 +1,5 @@
 import { analyzeCv, DEFAULT_HIGHER_ED_PROFILE } from "./assessment";
+import { normalizeCandidateEmail } from "./candidates/profile";
 import {
   assertWithinLimit,
   completeAssessment,
@@ -19,13 +20,24 @@ import { newId, saveCvFile, sha256Hex } from "./storage";
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED = /\.(pdf|docx?)$/i;
 
+export type StudentContactInput = {
+  displayName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+};
+
 export type CreateAssessmentInput = {
   file: File;
   goalSlug?: string | null;
   goalId?: string | null;
   institutionId?: string | null;
   uploadedByEmail?: string | null;
+  contact?: StudentContactInput | null;
 };
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 export async function createAssessmentJob(input: CreateAssessmentInput): Promise<{
   id: string;
@@ -34,6 +46,15 @@ export async function createAssessmentJob(input: CreateAssessmentInput): Promise
   if (!input.file?.size) throw new Error("Please choose a CV file to upload.");
   if (input.file.size > MAX_BYTES) throw new Error("Please upload a file smaller than 8 MB.");
   if (!ALLOWED.test(input.file.name)) throw new Error("Please upload a PDF or DOCX file.");
+
+  const contact = normalizeContact(input.contact);
+  // Public QR uploads must collect name + email so staff can email the share link later.
+  if (input.goalSlug) {
+    if (!contact.displayName) throw new Error("Please enter your full name.");
+    if (!contact.email || !isValidEmail(contact.email)) {
+      throw new Error("Please enter a valid email address.");
+    }
+  }
 
   const goal = await resolveGoal(input);
   await assertWithinLimit(goal.institution_id);
@@ -59,6 +80,7 @@ export async function createAssessmentJob(input: CreateAssessmentInput): Promise
       bytes,
       goal,
       uploadedByEmail: input.uploadedByEmail,
+      contact,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Assessment failed";
@@ -66,6 +88,17 @@ export async function createAssessmentJob(input: CreateAssessmentInput): Promise
   }
 
   return { id: assessmentId, token };
+}
+
+function normalizeContact(contact?: StudentContactInput | null): {
+  displayName: string | null;
+  email: string | null;
+  phone: string | null;
+} {
+  const displayName = contact?.displayName?.trim() || null;
+  const email = normalizeCandidateEmail(contact?.email) || null;
+  const phone = contact?.phone?.trim() || null;
+  return { displayName, email, phone };
 }
 
 async function resolveGoal(input: CreateAssessmentInput): Promise<GoalRow> {
@@ -90,6 +123,7 @@ async function runAssessment(params: {
   bytes: Uint8Array;
   goal: GoalRow;
   uploadedByEmail?: string | null;
+  contact: { displayName: string | null; email: string | null; phone: string | null };
 }): Promise<void> {
   const institution = await getInstitution(params.institutionId);
   if (!institution) throw new Error("Institution not found.");
@@ -107,6 +141,11 @@ async function runAssessment(params: {
     engine: institution.assessment_engine,
     model: institution.assessment_model,
   });
+
+  // Prefer form contact over CV-parsed identity (QR collects these explicitly).
+  if (params.contact.displayName) structured.name = params.contact.displayName;
+  if (params.contact.email) structured.email = params.contact.email;
+  if (params.contact.phone) structured.phone = params.contact.phone;
 
   const ranking = buildRanking({
     structured,

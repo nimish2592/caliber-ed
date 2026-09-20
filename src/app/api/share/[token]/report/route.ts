@@ -23,6 +23,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
     goalCode: shared.goalCode,
     score: shared.assessment.overall_score,
     canDownloadCv: Boolean(shared.document?.storage_path || shared.assessment.ranking?.resume_text),
+    institutionName: shared.institutionName,
     dimensions: details.dimensions.map((d) => ({
       key: d.dimension,
       label: DIMENSION_LABELS[d.dimension as keyof typeof DIMENSION_LABELS] ?? d.dimension,
@@ -34,7 +35,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   });
 
   return fileDownloadResponse({
-    bytes: buildStudentReportPdf(report),
+    bytes: await buildStudentReportPdf(report),
     fileName: studentReportFileName(report.candidateName),
     mimeType: "application/pdf",
   });
