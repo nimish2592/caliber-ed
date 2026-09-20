@@ -2,6 +2,7 @@ import { dbOne, dbQuery } from "./client";
 import { newId } from "../storage";
 import type { EngineResult, StructuredCv } from "../assessment/types";
 import type { GoalStatus, RankedCv, RankingPayload } from "../ranking/types";
+import { letterGradeFromScore } from "../grading/letterGrade";
 import type { CandidateDirectoryStatus, CandidateRow } from "../candidates/types";
 import { DEFAULT_DIRECTORY_STATUS } from "../candidates/types";
 import { mergeProfile, normalizeCandidateEmail, profileFromStructured } from "../candidates/profile";
@@ -805,6 +806,7 @@ export async function listRankedCvs(goalId: string, institutionId: string): Prom
       candidate_name: row.candidate_name || "Unknown",
       file_name: row.file_name || "CV",
       score: row.overall_score ?? 0,
+      grade: letterGradeFromScore(row.overall_score ?? 0),
       scores: {
         skills_score: 0,
         experience_score: 0,
@@ -842,6 +844,7 @@ export async function listRankedCvs(goalId: string, institutionId: string): Prom
       candidate_name: payload.candidate_name || row.candidate_name || "Unknown",
       candidate_email: payload.candidate_email || row.student_email,
       score: row.status === "completed" ? (payload.score ?? row.overall_score ?? 0) : payload.score,
+      grade: payload.grade || letterGradeFromScore(payload.score ?? row.overall_score ?? 0),
     };
   });
 }
@@ -1177,6 +1180,7 @@ async function listRankedCvsByCandidate(candidateId: string, institutionId: stri
       candidate_name: row.candidate_name || "Unknown",
       file_name: row.file_name || "CV",
       score: row.overall_score ?? 0,
+      grade: letterGradeFromScore(row.overall_score ?? 0),
       scores: {
         skills_score: 0,
         experience_score: 0,
@@ -1213,6 +1217,7 @@ async function listRankedCvsByCandidate(candidateId: string, institutionId: stri
       candidate_name: payload.candidate_name || row.candidate_name || "Unknown",
       candidate_email: payload.candidate_email || row.student_email,
       score: row.status === "completed" ? (payload.score ?? row.overall_score ?? 0) : payload.score,
+      grade: payload.grade || letterGradeFromScore(payload.score ?? row.overall_score ?? 0),
     };
   });
 }

@@ -109,6 +109,8 @@ async function runAssessment(params: {
     text,
     fileName: params.fileName,
     focusSkills: params.goal.focus_skills,
+    goalTitle: params.goal.title,
+    goalContext: params.goal.context_text,
   });
 
   const studentId = await findOrCreateStudent({

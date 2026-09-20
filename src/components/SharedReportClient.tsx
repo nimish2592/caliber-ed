@@ -101,18 +101,21 @@ export default function SharedReportClient({ token }: { token: string }) {
         )}
         <div className={`bg-gradient-to-br ${scoreBg} rounded-2xl px-6 py-5 text-white`}>
           <p className="text-white/70 text-xs font-medium uppercase tracking-wide">
-            {report.goalCode} · {report.goalTitle}
+            {report.goalCode} · Graded against {report.goalTitle}
           </p>
           <h1 className="text-2xl font-bold mt-1">{report.candidateName}</h1>
           <p className="text-white/70 text-xs mt-1 truncate">{report.fileName}</p>
           <div className="flex items-end justify-between mt-4">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${rec.className}`}>
-              {rec.icon}
-              <span className="font-semibold text-sm">{rec.label}</span>
-            </span>
+            <div className="flex flex-col gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${rec.className}`}>
+                {rec.icon}
+                <span className="font-semibold text-sm">{rec.label}</span>
+              </span>
+              {report.grade ? <span className="text-sm font-black">Grade {report.grade}</span> : null}
+            </div>
             <div className="text-right">
               <div className="text-5xl font-black">{score}</div>
-              <div className="text-white/70 text-xs">/100 readiness</div>
+              <div className="text-white/70 text-xs">/100 goal grade</div>
             </div>
           </div>
         </div>

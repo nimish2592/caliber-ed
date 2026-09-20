@@ -11,6 +11,7 @@ import { CANDIDATE_DIRECTORY_STATUSES, directoryStatusBadgeClass } from "@/lib/c
 import type { RankedCv } from "@/lib/ranking/types";
 import ShareCvModal from "@/components/ShareCvModal";
 import TextViewerModal from "@/components/TextViewerModal";
+import GradeBadge from "@/components/GradeBadge";
 import { downloadFromApi } from "@/utils/downloadFromApi";
 
 const PAGE_SIZE = 20;
@@ -40,8 +41,7 @@ function formatDate(iso: string | null) {
 
 function ScoreBadge({ score }: { score: number | null }) {
   if (score == null) return <span className="text-xs text-slate-400 italic">—</span>;
-  const color = score >= 75 ? "text-emerald-700 bg-emerald-100" : score >= 50 ? "text-amber-700 bg-amber-100" : "text-red-700 bg-red-100";
-  return <div className={`inline-flex items-center px-2.5 py-1 rounded-full font-bold text-sm ${color}`}>{score}</div>;
+  return <GradeBadge grade={null} score={score} size="sm" />;
 }
 
 function CandidateDetailPanel({

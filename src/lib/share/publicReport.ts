@@ -6,6 +6,7 @@ export type PublicShareReport = {
   goalTitle: string;
   goalCode: string;
   score: number | null;
+  grade: string | null;
   recommendation: RankingPayload["recommendation"] | null;
   reason: string;
   scores: RankingPayload["scores"] | null;
@@ -14,6 +15,7 @@ export type PublicShareReport = {
   highlights: string[];
   redFlags: string[];
   canDownloadCv: boolean;
+  goalFit: RankingPayload["goal_fit"] | null;
 };
 
 export function publicShareReport(params: {
@@ -32,6 +34,7 @@ export function publicShareReport(params: {
     goalTitle: params.goalTitle,
     goalCode: params.goalCode,
     score: ranking?.score ?? params.score,
+    grade: ranking?.grade ?? null,
     recommendation: ranking?.recommendation ?? null,
     reason: ranking?.reason || "",
     scores: ranking?.scores ?? null,
@@ -40,5 +43,6 @@ export function publicShareReport(params: {
     highlights: ranking?.highlights ?? [],
     redFlags: ranking?.red_flags ?? [],
     canDownloadCv: params.canDownloadCv,
+    goalFit: ranking?.goal_fit ?? null,
   };
 }

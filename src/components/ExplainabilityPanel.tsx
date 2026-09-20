@@ -85,7 +85,7 @@ export default function ExplainabilityPanel({
         <div className={`bg-gradient-to-br ${scoreBgColor} px-6 py-5 text-white flex-shrink-0`}>
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1 min-w-0 pr-3">
-              <p className="text-white/70 text-xs font-medium uppercase tracking-wide mb-1">Student analysis</p>
+              <p className="text-white/70 text-xs font-medium uppercase tracking-wide mb-1">Graded against this goal</p>
               <h2 className="text-xl font-bold truncate">{resume.candidate_name || "Unknown"}</h2>
               <p className="text-white/60 text-xs mt-0.5 truncate">{resume.file_name}</p>
             </div>
@@ -94,13 +94,18 @@ export default function ExplainabilityPanel({
             </button>
           </div>
           <div className="flex items-end justify-between">
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${rec.bg} ${rec.border} ${rec.text}`}>
-              {rec.icon}
-              <span className="font-semibold text-sm">{rec.label}</span>
+            <div className="flex flex-col items-start gap-2">
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${rec.bg} ${rec.border} ${rec.text}`}>
+                {rec.icon}
+                <span className="font-semibold text-sm">{rec.label}</span>
+              </div>
+              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-white/15 text-white text-sm font-black">
+                {resume.grade || "—"}
+              </span>
             </div>
             <div className="text-right">
               <div className="text-5xl font-black">{finalScore}</div>
-              <div className="text-white/60 text-xs">/100 readiness</div>
+              <div className="text-white/60 text-xs">/100 goal grade</div>
             </div>
           </div>
         </div>
@@ -108,16 +113,36 @@ export default function ExplainabilityPanel({
         <div className="flex-1 overflow-y-auto">
           <div className="p-6 space-y-6">
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Goal scorecard</h3>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-600">Focus skill match</span>
-                  <span className="text-xs font-bold text-slate-700">{mandatoryPct}%</span>
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Goal grade</h3>
+              {resume.goal_fit ? (
+                <div className="space-y-2">
+                  {[
+                    { label: "CV quality", value: resume.goal_fit.profile_quality, weight: "40%" },
+                    { label: "Focus skills", value: resume.goal_fit.focus_skills, weight: "35%" },
+                    { label: "Goal context", value: resume.goal_fit.context_alignment, weight: "25%" },
+                  ].map((row) => (
+                    <div key={row.label}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-slate-600">{row.label} <span className="text-slate-400">({row.weight})</span></span>
+                        <span className="text-xs font-bold text-slate-700">{row.value}</span>
+                      </div>
+                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${row.value >= 75 ? "bg-emerald-500" : row.value >= 50 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${Math.max(0, Math.min(100, row.value))}%` }} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${mandatoryBarColor}`} style={{ width: `${Math.max(0, Math.min(100, mandatoryPct))}%` }} />
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-600">Focus skill match</span>
+                    <span className="text-xs font-bold text-slate-700">{mandatoryPct}%</span>
+                  </div>
+                  <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${mandatoryBarColor}`} style={{ width: `${Math.max(0, Math.min(100, mandatoryPct))}%` }} />
+                  </div>
                 </div>
-              </div>
+              )}
               {mustHaveMissing.length > 0 ? (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-1.5">

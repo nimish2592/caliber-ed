@@ -43,8 +43,11 @@ Return ONLY JSON:
   "certifications": {"score": 0, "evidence": ""},
   "formatting": {"score": 0, "evidence": ""},
   "completeness": {"score": 0, "evidence": ""},
+  "goal_fit": {"score": 0, "evidence": ""},
   "recommendations": [{"priority": "high"|"medium"|"optional", "title": "", "detail": "", "dimension": "projects"}]
 }
+
+goal_fit.score is 0-100 for how well THIS CV meets THIS goal (focus skills + context), not generic CV quality.
 
 Weights (for your judgment, not a JD match): ${JSON.stringify(profile.dimensions)}
 
@@ -104,6 +107,9 @@ ${text.slice(0, 12000)}`;
         }))
       : [];
 
+    const goalFitRaw = parsed.goal_fit as { score?: number; evidence?: string } | undefined;
+    const llmGoalFit = Number.isFinite(Number(goalFitRaw?.score)) ? clamp(Number(goalFitRaw?.score)) : undefined;
+
     const weightSum = dimensions.reduce((s, d) => s + d.weight, 0) || 1;
     const overallScore = clamp(dimensions.reduce((s, d) => s + d.score * d.weight, 0) / weightSum);
 
@@ -113,6 +119,8 @@ ${text.slice(0, 12000)}`;
       dimensions,
       recommendations: recs,
       engine: "openai",
+      llmGoalFit,
+      llmGoalEvidence: goalFitRaw?.evidence ? String(goalFitRaw.evidence) : undefined,
     } satisfies EngineResult;
   },
 };

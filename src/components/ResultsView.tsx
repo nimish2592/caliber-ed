@@ -2,6 +2,7 @@
 
 import { DIMENSION_LABELS, statusLabel } from "@/lib/assessment/profiles";
 import type { DimensionStatus } from "@/lib/assessment/types";
+import GradeBadge from "@/components/GradeBadge";
 
 type Dimension = {
   key: string;
@@ -15,6 +16,12 @@ type Rec = {
   priority: string;
   title: string;
   detail: string;
+};
+
+type GoalFit = {
+  profile_quality: number;
+  focus_skills: number;
+  context_alignment: number;
 };
 
 const statusColor: Record<string, string> = {
@@ -32,12 +39,22 @@ function readiness(score: number) {
 
 export function ResultsView({
   overallScore,
+  grade,
   summary,
+  goalTitle,
+  goalFit,
+  matchedSkills,
+  missingSkills,
   dimensions,
   recommendations,
 }: {
   overallScore: number;
+  grade?: string;
   summary: string;
+  goalTitle?: string | null;
+  goalFit?: GoalFit | null;
+  matchedSkills?: string[];
+  missingSkills?: string[];
   dimensions: Dimension[];
   recommendations: Rec[];
 }) {
@@ -49,18 +66,53 @@ export function ResultsView({
     <div className="space-y-8">
       <section className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Your CV score</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            {goalTitle ? `Graded against ${goalTitle}` : "Your CV grade"}
+          </p>
           <h1 className="text-2xl font-bold text-slate-900 mt-1">Career readiness</h1>
           <p className="mt-3 max-w-xl text-slate-500 text-sm">{summary}</p>
-          <span className={`inline-flex mt-4 items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${rec.className}`}>
-            {rec.label}
-          </span>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <GradeBadge grade={grade} score={overallScore} />
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${rec.className}`}>
+              {rec.label}
+            </span>
+          </div>
         </div>
         <div className="text-right">
-          <div className="text-6xl font-black text-slate-900">{overallScore}</div>
-          <div className="text-xs text-slate-400">/100</div>
+          <div className="text-6xl font-black text-slate-900">{grade || overallScore}</div>
+          <div className="text-xs text-slate-400">{grade ? `${overallScore}/100` : "/100"}</div>
         </div>
       </section>
+
+      {goalFit && (
+        <section className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">How this grade was calculated</h2>
+          {[
+            { label: "CV quality", value: goalFit.profile_quality, hint: "40%" },
+            { label: "Focus skills", value: goalFit.focus_skills, hint: "35%" },
+            { label: "Goal context", value: goalFit.context_alignment, hint: "25%" },
+          ].map((row) => (
+            <div key={row.label} className="flex items-center gap-3">
+              <span className="text-xs font-medium text-slate-600 w-28">{row.label}</span>
+              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.max(0, Math.min(100, row.value))}%` }} />
+              </div>
+              <span className="text-xs font-bold text-slate-700 w-8 text-right">{row.value}</span>
+              <span className="text-[10px] text-slate-400 w-8">{row.hint}</span>
+            </div>
+          ))}
+          {(matchedSkills?.length || missingSkills?.length) ? (
+            <div className="flex flex-wrap gap-1.5 pt-2">
+              {matchedSkills?.map((s) => (
+                <span key={s} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded-full border border-emerald-100">{s}</span>
+              ))}
+              {missingSkills?.map((s) => (
+                <span key={`m-${s}`} className="px-2 py-0.5 bg-red-50 text-red-700 text-xs rounded-full border border-red-100">{s}</span>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <section className="rounded-2xl border border-slate-200 bg-white p-5">

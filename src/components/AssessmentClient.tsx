@@ -8,7 +8,12 @@ type Payload = {
   status: string;
   error?: string | null;
   overallScore?: number;
+  grade?: string;
   summary?: string;
+  goalTitle?: string | null;
+  goalFit?: { profile_quality: number; focus_skills: number; context_alignment: number } | null;
+  matchedSkills?: string[];
+  missingSkills?: string[];
   dimensions?: Array<{ key: string; label: string; score: number; status: string; evidence: string }>;
   recommendations?: Array<{ priority: string; title: string; detail: string }>;
 };
@@ -48,7 +53,12 @@ export function AssessmentClient({ id, token }: { id: string; token: string }) {
   return (
     <ResultsView
       overallScore={data.overallScore ?? 0}
+      grade={data.grade}
       summary={data.summary ?? ""}
+      goalTitle={data.goalTitle}
+      goalFit={data.goalFit}
+      matchedSkills={data.matchedSkills ?? []}
+      missingSkills={data.missingSkills ?? []}
       dimensions={data.dimensions ?? []}
       recommendations={data.recommendations ?? []}
     />

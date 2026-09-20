@@ -62,7 +62,9 @@ function contextAlignment(contextText: string, cvText: string): { score: number;
 function activeWeights(goal?: GoalContext | null): { profile: number; skills: number; context: number } {
   const hasSkills = Boolean(goal?.focusSkills?.length);
   const hasContext = Boolean(goal?.contextText?.trim());
-  if (hasSkills && hasContext) return { ...GOAL_GRADE_WEIGHTS, skills: GOAL_GRADE_WEIGHTS.focusSkills };
+  if (hasSkills && hasContext) {
+    return { profile: GOAL_GRADE_WEIGHTS.profile, skills: GOAL_GRADE_WEIGHTS.focusSkills, context: GOAL_GRADE_WEIGHTS.context };
+  }
   if (hasSkills) return { profile: 0.55, skills: 0.45, context: 0 };
   if (hasContext) return { profile: 0.55, skills: 0, context: 0.45 };
   return { profile: 1, skills: 0, context: 0 };

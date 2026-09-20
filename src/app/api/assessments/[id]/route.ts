@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { DIMENSION_LABELS } from "@/lib/assessment/profiles";
-import { getAssessmentDetails, getAssessmentForAccess, getAssessmentForInstitution } from "@/lib/db/queries";
+import { getAssessmentDetails, getAssessmentForAccess, getAssessmentForInstitution, getGoalById } from "@/lib/db/queries";
+import { letterGradeFromScore } from "@/lib/grading/letterGrade";
 
 export const runtime = "nodejs";
 
@@ -38,12 +39,24 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     evidence: d.evidence,
   }));
 
+  const ranking = assessment.ranking;
+  const overallScore = ranking?.score ?? assessment.overall_score ?? 0;
+  const goal = assessment.goal_id
+    ? await getGoalById(assessment.goal_id, assessment.institution_id)
+    : null;
+
   return NextResponse.json({
     id: assessment.id,
     status: assessment.status,
-    overallScore: assessment.overall_score,
-    summary: assessment.summary,
+    overallScore,
+    grade: ranking?.grade || letterGradeFromScore(overallScore),
+    summary: ranking?.reason || assessment.summary,
     engine: assessment.engine,
+    goalTitle: goal?.title ?? null,
+    goalCode: goal?.goal_code ?? null,
+    goalFit: ranking?.goal_fit ?? null,
+    matchedSkills: ranking?.matched_skills ?? [],
+    missingSkills: ranking?.missing_skills ?? [],
     dimensions,
     recommendations: details.recommendations,
   });
