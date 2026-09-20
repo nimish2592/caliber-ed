@@ -1,37 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Caliber Higher Ed
 
-## Getting Started
+Standalone career-readiness / CV assessment SaaS for colleges, universities, career centres, and education fairs.
 
-First, run the development server:
+This is **not** a fork of Caliber ATS. It is a separate Next.js app with its own database, auth, storage, and deployment. Caliber hiring stays in `ats-perfect-ventures`.
+
+## V1 product
+
+Student: landing → upload CV → assessment → score, section scores, strengths, recommendations.
+
+Institution: login → aggregate dashboard → events (link + QR) → settings and annual assessment limits.
+
+Scoring lives in `src/lib/assessment/` and is **swappable**. V1 ships a documented heuristic engine. Set `ASSESSMENT_ENGINE=openai` later without changing the product shell.
+
+## Local development
 
 ```bash
+cd caliber-higher-ed
+cp .env.example .env.local
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Local data (PGlite) is stored in `.data/` — never in Caliber’s Postgres or Google Drive. CV files are stored in a **private Supabase bucket** (`cv-uploads`), grouped by campus:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Staff upload (signed in): `{institution-slug}/login/{email}/{assessment-id}/{filename}`
+- Student upload (public goal link): `{institution-slug}/goal/{goal-slug}/{assessment-id}/{filename}`
 
-## Learn More
+Demo campus login:
 
-To learn more about Next.js, take a look at the following resources:
+- Email: `campus@demo.edu`
+- Password: `campus-demo`
+- Seeded event: [/e/career-fair-2026](http://localhost:3000/e/career-fair-2026)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Environment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+See `.env.example`. Production needs a **new** Postgres database, `AUTH_SECRET`, storage bucket, and Vercel project. Do not copy Caliber secrets.
 
-## Deploy on Vercel
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Dedicated Higher-Ed Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Dedicated project anon / publishable key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only service role (never expose to the browser) |
+| `SUPABASE_DB_PASSWORD` | Dedicated project database password |
+| `DATABASE_URL` | Production Postgres (this project's pooler URI). Omit locally to use PGlite. |
+| `STORAGE_DRIVER` | `supabase` (default) or `local` |
+| `STORAGE_BUCKET` | Private bucket name (`cv-uploads`) |
+| `AUTH_SECRET` | Institution session JWT |
+| `ASSESSMENT_ENGINE` | `heuristic` (default) or `openai` |
+| `OPENAI_API_KEY` | Only if using the OpenAI engine |
+| `CALIBER_CV_API_URL` / `CALIBER_CV_API_KEY` | Reserved for a future extract-only Caliber API |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Scoring
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# caliber-ed
+Default profile (`Higher Education Default`):
+
+| Dimension | Weight |
+|---|---|
+| Education | 15 |
+| Skills | 15 |
+| Experience | 10 |
+| Internships | 10 |
+| Projects | 20 |
+| Achievements | 15 |
+| Certifications | 5 |
+| Formatting | 5 |
+| Completeness | 5 |
+
+Status bands: 80–100 Strong, 65–79 Good, 50–64 Developing, 0–49 Needs improvement.
+
+Replace `src/lib/assessment/heuristic.ts` or switch `ASSESSMENT_ENGINE` to change ranking without rewriting UI, tenancy, or events.
+
+## Deploy
+
+Create a **new** Vercel project from this repo (not the Caliber ATS project). Point it at a dedicated Postgres database and storage bucket.
