@@ -1,10 +1,11 @@
-import { appConfig } from "../config";
-import { extractStructuredCv } from "./extractStructured";
-import { extractCvText } from "./extractText";
+import { applyGoalGrade } from "../grading/apply";
 import { heuristicEngine } from "./heuristic";
 import { openaiEngine } from "./openai";
 import { DEFAULT_HIGHER_ED_PROFILE } from "./profiles";
 import type { AssessmentEngine, AssessmentProfile, EngineResult, StructuredCv, GoalContext } from "./types";
+import { appConfig } from "../config";
+import { extractStructuredCv } from "./extractStructured";
+import { extractCvText } from "./extractText";
 
 export function getAssessmentEngine(): AssessmentEngine {
   if (appConfig.assessmentEngine === "openai" && appConfig.openaiKey) {
@@ -27,13 +28,17 @@ export async function analyzeCv(params: {
   }
   const structured = extractStructuredCv(text);
   const engine = getAssessmentEngine();
+  const finish = (result: EngineResult) => {
+    const graded = applyGoalGrade(result, { structured, text, goal: params.goal });
+    return { text, structured, result: graded };
+  };
   try {
     const result = await engine.score({ text, structured, profile, goal: params.goal });
-    return { text, structured, result };
+    return finish(result);
   } catch (err) {
     if (engine.name !== "heuristic") {
       const result = await heuristicEngine.score({ text, structured, profile, goal: params.goal });
-      return { text, structured, result };
+      return finish(result);
     }
     throw err;
   }

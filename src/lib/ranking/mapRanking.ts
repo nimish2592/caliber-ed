@@ -1,9 +1,7 @@
 import type { EngineResult, StructuredCv } from "../assessment/types";
+import { gradeAgainstGoal } from "../grading/goalGrade";
+import { letterGradeFromScore } from "../grading/letterGrade";
 import type { DimensionScores, HeRecommendation, RankingPayload } from "./types";
-
-function clamp(n: number): number {
-  return Math.max(0, Math.min(100, Math.round(n)));
-}
 
 function dim(result: EngineResult, key: string, fallback = 0): number {
   return result.dimensions.find((d) => d.key === key)?.score ?? fallback;
@@ -15,29 +13,26 @@ export function heRecommendation(score: number): HeRecommendation {
   return "needs_work";
 }
 
-export function matchFocusSkills(text: string, focusSkills: string[]): { matched: string[]; missing: string[] } {
-  const lower = text.toLowerCase();
-  const matched: string[] = [];
-  const missing: string[] = [];
-  for (const skill of focusSkills.map((s) => s.trim()).filter(Boolean)) {
-    if (lower.includes(skill.toLowerCase())) matched.push(skill);
-    else missing.push(skill);
-  }
-  return { matched, missing };
-}
-
 export function buildRanking(params: {
   structured: StructuredCv;
   result: EngineResult;
   text: string;
   fileName: string;
   focusSkills: string[];
+  goalTitle?: string;
+  goalContext?: string;
 }): RankingPayload {
   const { structured, result, text, fileName, focusSkills } = params;
-  const { matched, missing } = matchFocusSkills(text, focusSkills);
-  const keywordScore = focusSkills.length
-    ? clamp((matched.length / focusSkills.length) * 100)
-    : dim(result, "completeness", 50);
+  const graded = result.goalGrade ?? gradeAgainstGoal({
+    result,
+    structured,
+    text,
+    goal: {
+      title: params.goalTitle || "",
+      contextText: params.goalContext || "",
+      focusSkills,
+    },
+  });
 
   const internships = dim(result, "internships");
   const experience = dim(result, "experience");
@@ -49,7 +44,7 @@ export function buildRanking(params: {
     years_score: dim(result, "projects", experienceScore),
     education_score: dim(result, "education"),
     achievements_score: dim(result, "achievements"),
-    keyword_score: keywordScore,
+    keyword_score: graded.fit.focus_skills,
     location_score: 0,
   };
 
@@ -59,7 +54,6 @@ export function buildRanking(params: {
     .slice(0, 5);
 
   const redFlags = result.recommendations.filter((r) => r.priority === "high").map((r) => r.title);
-
   const overall = result.overallScore;
   const years = structured.internships.length + structured.experience.length;
 
@@ -67,16 +61,17 @@ export function buildRanking(params: {
     candidate_name: structured.name || "Unknown",
     file_name: fileName,
     score: overall,
+    grade: graded.grade || letterGradeFromScore(overall),
     scores,
-    matched_skills: matched,
-    missing_skills: missing,
+    matched_skills: graded.matchedSkills,
+    missing_skills: graded.missingSkills,
     highlights,
     red_flags: redFlags,
     experience_match: experienceScore >= 70 ? "high" : experienceScore >= 50 ? "medium" : "low",
     recommendation: heRecommendation(overall),
     reason: result.summary,
-    mandatory_match_pct: focusSkills.length ? keywordScore : 100,
-    critical_skills_missing: missing,
+    mandatory_match_pct: graded.fit.focus_skills,
+    critical_skills_missing: graded.missingSkills,
     experience_fit_status: experienceScore >= 70 ? "perfect" : "unknown",
     overqualification_penalty: 0,
     years_experience: years,
@@ -84,5 +79,6 @@ export function buildRanking(params: {
     location_match_status: null,
     resume_text: text.slice(0, 50_000),
     candidate_email: structured.email,
+    goal_fit: graded.fit,
   };
 }

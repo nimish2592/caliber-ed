@@ -1,3 +1,5 @@
+import type { GoalFitBreakdown } from "../grading/goalGrade";
+
 export type ScoringWeights = {
   skills: number;
   experience: number;
@@ -35,6 +37,7 @@ export type RankingPayload = {
   candidate_name: string;
   file_name: string;
   score: number;
+  grade: string;
   scores: DimensionScores;
   matched_skills: string[];
   missing_skills: string[];
@@ -52,6 +55,7 @@ export type RankingPayload = {
   location_match_status: string | null;
   resume_text: string;
   candidate_email: string | null;
+  goal_fit?: GoalFitBreakdown;
 };
 
 export type RankedCv = RankingPayload & {

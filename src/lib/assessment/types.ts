@@ -57,12 +57,29 @@ export type AssessmentProfile = {
   dimensions: Record<DimensionKey, number>;
 };
 
+export type GoalGradeSnapshot = {
+  score: number;
+  grade: string;
+  matchedSkills: string[];
+  missingSkills: string[];
+  fit: {
+    profile_quality: number;
+    focus_skills: number;
+    context_alignment: number;
+    weights: { profile: number; skills: number; context: number };
+  };
+};
+
 export type EngineResult = {
   overallScore: number;
   summary: string;
   dimensions: DimensionScore[];
   recommendations: Recommendation[];
   engine: string;
+  profileScore?: number;
+  llmGoalFit?: number;
+  llmGoalEvidence?: string;
+  goalGrade?: GoalGradeSnapshot;
 };
 
 export type AssessmentEngine = {
